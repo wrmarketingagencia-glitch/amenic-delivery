@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Studio {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  password     String
+  name         String
+  slug         String    @unique
+  logoUrl      String?
+  primaryColor String    @default("#C9A84C")
+  domain       String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  galleries    Gallery[]
+}
+
+model Gallery {
+  id            String   @id @default(cuid())
+  studioId      String
+  studio        Studio   @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  slug          String   @unique
+  title         String
+  subtitle      String?
+  coverImageUrl String?
+  password      String?
+  isPublished   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  videos        Video[]
+  photos        Photo[]
+}
+
+model Video {
+  id              String   @id @default(cuid())
+  galleryId       String
+  gallery         Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  title           String
+  hlsUrl          String?
+  mp4Url          String?
+  thumbnailUrl    String?
+  durationSeconds Int?
+  fileSize        Int?
+  order           Int      @default(0)
+  downloadEnabled Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Photo {
+  id           String   @id @default(cuid())
+  galleryId    String
+  gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  url          String
+  thumbnailUrl String?
+  caption      String?
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+}
