@@ -29,6 +29,8 @@ model Gallery {
   title         String
   subtitle      String?
   coverImageUrl String?
+  primaryColor  String?
+  fontFamily    String   @default("Georgia")
   password      String?
   isPublished   Boolean  @default(false)
   createdAt     DateTime @default(now())

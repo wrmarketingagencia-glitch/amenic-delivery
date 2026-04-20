@@ -1,9 +1,11 @@
 import NextAuth from "next-auth"
+import { getServerSession } from "next-auth/next"
 import CredentialsProvider from "next-auth/providers/credentials"
+import type { NextAuthOptions } from "next-auth"
 import bcrypt from "bcryptjs"
 import { db } from "./db"
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -52,4 +54,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return session
     },
   },
-})
+}
+
+// Handler para a rota /api/auth/[...nextauth]
+export const { handlers, signIn, signOut } = NextAuth(authOptions)
+
+// Wrapper com a mesma assinatura usada em todo o projeto
+export async function auth() {
+  return getServerSession(authOptions)
+}

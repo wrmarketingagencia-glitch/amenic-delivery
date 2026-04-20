@@ -1,40 +1,17 @@
 import { writeFile, mkdir } from "fs/promises"
 import path from "path"
+import { isBunnyStorageConfigured, uploadToStorage } from "@/lib/bunny"
 
-const BUNNY_ZONE = process.env.BUNNY_STORAGE_ZONE
-const BUNNY_KEY = process.env.BUNNY_STORAGE_API_KEY
-const BUNNY_CDN = process.env.BUNNY_CDN_URL
-
+/** Upload de imagem/arquivo genérico. Usa Bunny Storage se configurado, senão salva localmente. */
 export async function uploadFile(
   file: Buffer,
   filename: string,
   folder: string
 ): Promise<string> {
-  if (BUNNY_ZONE && BUNNY_KEY && BUNNY_CDN) {
-    return uploadToBunny(file, filename, folder)
+  if (isBunnyStorageConfigured()) {
+    return uploadToStorage(file, filename, folder)
   }
   return uploadToLocal(file, filename, folder)
-}
-
-async function uploadToBunny(buffer: Buffer, filename: string, folder: string): Promise<string> {
-  const remotePath = `${folder}/${filename}`
-  const res = await fetch(
-    `https://storage.bunnycdn.com/${BUNNY_ZONE}/${remotePath}`,
-    {
-      method: "PUT",
-      headers: {
-        AccessKey: BUNNY_KEY!,
-        "Content-Type": "application/octet-stream",
-      },
-      body: buffer,
-    }
-  )
-
-  if (!res.ok) {
-    throw new Error(`BunnyCDN upload failed: ${res.statusText}`)
-  }
-
-  return `${BUNNY_CDN}/${remotePath}`
 }
 
 async function uploadToLocal(buffer: Buffer, filename: string, folder: string): Promise<string> {

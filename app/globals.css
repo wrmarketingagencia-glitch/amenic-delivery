@@ -1,5 +1,48 @@
 @import "tailwindcss";
 
+/* ─── Fontes Amenic ──────────────────────────────────────────────────────── */
+@font-face {
+  font-family: "Ginger";
+  src: url("/fonts/Ginger.ttf") format("truetype");
+  font-weight: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "TheMacksen";
+  src: url("/fonts/TheMacksen.otf") format("opentype");
+  font-weight: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bridamount";
+  src: url("/fonts/Bridamount.ttf") format("truetype");
+  font-weight: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Thimberly";
+  src: url("/fonts/Thimberly.ttf") format("truetype");
+  font-weight: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Shintia";
+  src: url("/fonts/Shintia.ttf") format("truetype");
+  font-weight: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Housttely";
+  src: url("/fonts/Housttely_Signature.ttf") format("truetype");
+  font-weight: normal;
+  font-display: swap;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
