@@ -7,17 +7,30 @@ import type { Gallery, Studio, Video, Photo } from "@/app/generated/prisma/clien
 
 type GalleryWithAll = Gallery & { studio: Studio; videos: Video[]; photos: Photo[] }
 
+// Fontes disponíveis para o TÍTULO principal da galeria
+// (a fonte selecionada afeta SOMENTE o h1, não a UI nem as subpastas)
 export const FONT_MAP: Record<string, string> = {
-  "Playfair Display": "'Playfair Display', Georgia, serif",
-  "Merriweather":     "'Merriweather', Georgia, serif",
-  "Lora":             "'Lora', Georgia, serif",
-  "Ginger":           "'Ginger', Georgia, serif",
-  "TheMacksen":       "'TheMacksen', Georgia, serif",
-  "Bridamount":       "'Bridamount', cursive",
-  "Thimberly":        "'Thimberly', cursive",
-  "Shintia":          "'Shintia', cursive",
-  "Housttely":        "'Housttely', cursive",
+  // ── Google Fonts (imagem de referência) ──
+  "Italiana":           "'Italiana', Georgia, serif",
+  "Della Respira":      "'Della Respira', Georgia, serif",
+  "Raleway":            "'Raleway', system-ui, sans-serif",
+  "Slabo 13px":         "'Slabo 13px', Georgia, serif",
+  "Cormorant Garamond": "'Cormorant Garamond', Georgia, serif",
+  // ── Google Fonts clássicas ──
+  "Playfair Display":   "'Playfair Display', Georgia, serif",
+  "Merriweather":       "'Merriweather', Georgia, serif",
+  "Lora":               "'Lora', Georgia, serif",
+  // ── Fontes locais (custom Amenic) ──
+  "Ginger":             "'Ginger', Georgia, serif",
+  "TheMacksen":         "'TheMacksen', Georgia, serif",
+  "Bridamount":         "'Bridamount', cursive",
+  "Thimberly":          "'Thimberly', cursive",
+  "Shintia":            "'Shintia', cursive",
+  "Housttely":          "'Housttely', cursive",
 }
+
+// Fonte FIXA da UI (subpastas, labels, header) — não muda com a seleção
+export const UI_FONT = "'Inter', system-ui, sans-serif"
 
 /* ── Thin elegant icons ─────────────────────────────────────────── */
 const IconShare = () => (
@@ -126,7 +139,7 @@ function LayoutGatsby({ gallery, primaryColor, fontFamily }: { gallery: GalleryW
 
   /* ── Render ───────────────────────────────────────────────────── */
   return (
-    <div className="fixed inset-0 bg-black text-white flex flex-col overflow-hidden" style={{ fontFamily }}>
+    <div className="fixed inset-0 bg-black text-white flex flex-col overflow-hidden" style={{ fontFamily: UI_FONT }}>
 
       {/* ── Music audio ──────────────────────────────────────────── */}
       {gallery.musicUrl && <audio ref={audioRef} src={gallery.musicUrl} loop />}
@@ -233,7 +246,9 @@ function LayoutGatsby({ gallery, primaryColor, fontFamily }: { gallery: GalleryW
         {/* Title — bottom-left, like reference */}
         {!activeVideo && view === "videos" && (
           <div className="absolute bottom-0 left-0 px-8 pb-8 max-w-2xl">
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-light leading-[1.05] mb-3 drop-shadow-2xl">
+            {/* fontFamily afeta APENAS o título principal */}
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-light leading-[1.05] mb-3 drop-shadow-2xl"
+              style={{ fontFamily }}>
               {gallery.title}
             </h1>
             {gallery.subtitle && (
@@ -368,7 +383,7 @@ function LayoutSolace({ gallery, primaryColor, fontFamily }: { gallery: GalleryW
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col" style={{ fontFamily }}>
+    <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col" style={{ fontFamily: UI_FONT }}>
       {gallery.musicUrl && <audio ref={audioRef} src={gallery.musicUrl} loop />}
 
       {/* Top bar */}
@@ -509,7 +524,7 @@ function LayoutCinema({ gallery, primaryColor, fontFamily }: { gallery: GalleryW
   }
 
   return (
-    <div className="min-h-screen bg-black text-white relative overflow-hidden" style={{ fontFamily }}>
+    <div className="min-h-screen bg-black text-white relative overflow-hidden" style={{ fontFamily: UI_FONT }}>
       {gallery.musicUrl && <audio ref={audioRef} src={gallery.musicUrl} loop />}
 
       {!activeVideo && gallery.coverImageUrl && (
@@ -572,7 +587,7 @@ function LayoutCinema({ gallery, primaryColor, fontFamily }: { gallery: GalleryW
         {!activeVideo && view === "videos" && (
           <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
             <p className="text-xs tracking-[0.4em] uppercase text-white/30 mb-6 font-light">{gallery.studio.name}</p>
-            <h1 className="text-6xl lg:text-8xl font-light leading-[1.05] mb-4">{gallery.title}</h1>
+            <h1 className="text-6xl lg:text-8xl font-light leading-[1.05] mb-4" style={{ fontFamily }}>{gallery.title}</h1>
             {gallery.subtitle && <p className="text-white/40 text-lg font-light tracking-wide mb-12">{gallery.subtitle}</p>}
             <div className="flex items-center gap-4">
               <button onClick={() => gallery.videos[0] && setActiveVideo(gallery.videos[0])}

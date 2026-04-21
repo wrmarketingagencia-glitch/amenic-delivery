@@ -8,7 +8,7 @@ import { FONT_MAP } from "@/app/g/[slug]/GalleryViewer"
 
 type FolderWithItems = Folder & { videos: Video[]; photos: Photo[] }
 type GalleryWithAll = Gallery & { videos: Video[]; photos: Photo[]; folders: FolderWithItems[] }
-type Section = "upload" | "link" | "heading" | "background" | "music" | "styles" | "settings" | "deliver"
+type Section = "upload" | "link" | "folders" | "heading" | "background" | "music" | "styles" | "settings" | "deliver"
 
 const LAYOUTS = [
   {
@@ -59,17 +59,21 @@ const LAYOUTS = [
   },
 ]
 
-const FONT_LABELS: Record<string, string> = {
-  "Playfair Display": "Playfair Display",
-  "Merriweather":     "Merriweather",
-  "Lora":             "Lora",
-  "Ginger":           "Ginger",
-  "TheMacksen":       "TheMacksen",
-  "Bridamount":       "Bridamount",
-  "Thimberly":        "Thimberly",
-  "Shintia":          "Shintia",
-  "Housttely":        "Housttely",
-}
+// Grupos de fontes exibidos na aba Estilos → Tipografia
+const FONT_GROUPS: { label: string; fonts: string[] }[] = [
+  {
+    label: "Elegantes (Google Fonts)",
+    fonts: ["Italiana", "Della Respira", "Cormorant Garamond", "Playfair Display", "Lora", "Merriweather"],
+  },
+  {
+    label: "Modernas (Google Fonts)",
+    fonts: ["Raleway", "Slabo 13px"],
+  },
+  {
+    label: "Personalizadas (Amenic)",
+    fonts: ["Ginger", "TheMacksen", "Bridamount", "Thimberly", "Shintia", "Housttely"],
+  },
+]
 
 /* ── Sidebar nav icons ─────────────────────────────────────────── */
 const NavItem = ({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) => (
@@ -379,23 +383,58 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
       <div className="flex flex-1 overflow-hidden">
 
         {/* ── Icon sidebar ─────────────────────────────────── */}
-        <aside className="w-[62px] flex-shrink-0 border-r border-white/8 bg-[#0e0e0e] flex flex-col overflow-y-auto">
+        <aside className="w-[62px] flex-shrink-0 border-r border-white/8 bg-[#0e0e0e] flex flex-col overflow-y-auto py-1">
+          {/* Upload */}
           <NavItem active={section === "upload"} onClick={() => setSection("upload")} label="Upload"
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>} />
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>} />
+          {/* Link de vídeo */}
           <NavItem active={section === "link"} onClick={() => setSection("link")} label="Vídeos"
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg>} />
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+              <polygon points="10 8 16 10.5 10 13" fill="currentColor" stroke="none" opacity="0.7"/>
+            </svg>} />
+          {/* Subpastas — item dedicado */}
+          <NavItem active={section === "folders"} onClick={() => setSection("folders")} label="Pastas"
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+              <line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>
+            </svg>} />
+          {/* Título */}
           <NavItem active={section === "heading"} onClick={() => setSection("heading")} label="Título"
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h7"/></svg>} />
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>
+            </svg>} />
+          {/* Capa */}
           <NavItem active={section === "background"} onClick={() => setSection("background")} label="Capa"
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>} />
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+            </svg>} />
+          {/* Música */}
           <NavItem active={section === "music"} onClick={() => setSection("music")} label="Música"
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>} />
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+            </svg>} />
+          {/* Estilos / Fonts / Layout */}
           <NavItem active={section === "styles"} onClick={() => setSection("styles")} label="Estilos"
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>} />
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+              <path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+            </svg>} />
+          {/* Configurações */}
           <NavItem active={section === "settings"} onClick={() => setSection("settings")} label="Config"
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>} />
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>} />
+          {/* Entrega */}
           <NavItem active={section === "deliver"} onClick={() => setSection("deliver")} label="Entrega"
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>} />
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/>
+            </svg>} />
         </aside>
 
         {/* ── Section panel ────────────────────────────────── */}
@@ -472,98 +511,6 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                 </>
               )}
 
-              {/* ── Subpastas ──────────────────────────────────── */}
-              <SectionTitle className="mt-5">Subpastas</SectionTitle>
-
-              {/* Create folder */}
-              <div className="flex gap-2 mb-4">
-                <input
-                  value={newFolderName}
-                  onChange={e => setNewFolderName(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && createFolder()}
-                  placeholder="Nome da pasta…"
-                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/25 focus:outline-none focus:border-white/30"
-                />
-                <button
-                  onClick={createFolder}
-                  disabled={creatingFolder || !newFolderName.trim()}
-                  className="px-3 py-2 rounded-lg bg-white/8 hover:bg-white/12 border border-white/10 text-white/60 hover:text-white transition-all text-xs disabled:opacity-40"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                </button>
-              </div>
-
-              {folders.length === 0 && (
-                <p className="text-xs text-white/20 text-center py-3">Nenhuma pasta criada</p>
-              )}
-
-              {folders.map(folder => (
-                <div key={folder.id} className="mb-3 rounded-lg border border-white/8 overflow-hidden">
-                  {/* Folder header */}
-                  <div className="flex items-center justify-between px-3 py-2.5 bg-white/5">
-                    {renamingFolderId === folder.id ? (
-                      <input
-                        value={renamingName}
-                        onChange={e => setRenamingName(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter") renameFolder(folder.id); if (e.key === "Escape") setRenamingFolderId(null) }}
-                        onBlur={() => renameFolder(folder.id)}
-                        autoFocus
-                        className="flex-1 bg-transparent text-xs text-white border-b border-white/30 focus:outline-none mr-2"
-                      />
-                    ) : (
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <svg className="w-3.5 h-3.5 text-white/40 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-                        <span className="text-xs text-white/70 font-light truncate">{folder.name}</span>
-                        <span className="text-[10px] text-white/25 flex-shrink-0">{folder.videos.length} vídeo{folder.videos.length !== 1 ? "s" : ""}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-1 ml-2">
-                      <button
-                        onClick={() => { setRenamingFolderId(folder.id); setRenamingName(folder.name) }}
-                        className="p-1 text-white/25 hover:text-white/60 transition-colors"
-                        title="Renomear"
-                      >
-                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </button>
-                      <button
-                        onClick={() => deleteFolder(folder.id)}
-                        className="p-1 text-white/25 hover:text-red-400 transition-colors"
-                        title="Remover pasta"
-                      >
-                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 6h18M19 6l-1 14H6L5 6M10 6V4h4v2"/></svg>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Assign videos to folder */}
-                  {videos.length > 0 && (
-                    <div className="px-3 py-2.5 flex flex-col gap-1.5">
-                      {videos.map(v => {
-                        const inFolder = folder.videos.some(fv => fv.id === v.id)
-                        return (
-                          <label key={v.id} className="flex items-center gap-2.5 cursor-pointer group">
-                            <input
-                              type="checkbox"
-                              checked={inFolder}
-                              onChange={() => assignVideoToFolder(v.id, inFolder ? null : folder.id)}
-                              className="w-3.5 h-3.5 rounded accent-[#C9A84C] cursor-pointer"
-                            />
-                            {v.thumbnailUrl
-                              ? <img src={v.thumbnailUrl} className="w-9 h-5 object-cover rounded flex-shrink-0" alt="" />
-                              : <div className="w-9 h-5 bg-white/8 rounded flex-shrink-0" />
-                            }
-                            <span className="text-xs text-white/50 group-hover:text-white/70 transition-colors truncate flex-1">{v.title}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  )}
-                  {videos.length === 0 && (
-                    <p className="px-3 py-2 text-[10px] text-white/20">Adicione vídeos para organizar em pastas</p>
-                  )}
-                </div>
-              ))}
-
               {/* Photo grid */}
               {photos.length > 0 && (
                 <>
@@ -617,6 +564,110 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* FOLDERS */}
+          {section === "folders" && (
+            <div>
+              <SectionTitle>Subpastas da Galeria</SectionTitle>
+              <p className="text-white/25 text-[11px] font-light mb-4 leading-relaxed">
+                Organize os vídeos em capítulos — ex: &ldquo;Cerimônia&rdquo;, &ldquo;Festa&rdquo;, &ldquo;Making Of&rdquo;.
+              </p>
+
+              {/* Create folder */}
+              <div className="flex gap-2 mb-5">
+                <input
+                  value={newFolderName}
+                  onChange={e => setNewFolderName(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && createFolder()}
+                  placeholder="Nome da pasta…"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/25 focus:outline-none focus:border-[#C9A84C]/40"
+                />
+                <button
+                  onClick={createFolder}
+                  disabled={creatingFolder || !newFolderName.trim()}
+                  className="px-3 py-2 rounded-lg bg-[#C9A84C]/10 hover:bg-[#C9A84C]/20 border border-[#C9A84C]/20 text-[#C9A84C] hover:text-[#C9A84C] transition-all text-xs disabled:opacity-40"
+                  title="Criar pasta"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                </button>
+              </div>
+
+              {folders.length === 0 && (
+                <div className="text-center py-8 text-white/20 text-xs">
+                  <svg className="w-10 h-10 mx-auto mb-3 opacity-20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                  <p>Nenhuma pasta criada ainda</p>
+                </div>
+              )}
+
+              {folders.map(folder => (
+                <div key={folder.id} className="mb-3 rounded-lg border border-white/8 overflow-hidden">
+                  {/* Folder header */}
+                  <div className="flex items-center justify-between px-3 py-2.5 bg-white/5">
+                    {renamingFolderId === folder.id ? (
+                      <input
+                        value={renamingName}
+                        onChange={e => setRenamingName(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") renameFolder(folder.id); if (e.key === "Escape") setRenamingFolderId(null) }}
+                        onBlur={() => renameFolder(folder.id)}
+                        autoFocus
+                        className="flex-1 bg-transparent text-xs text-white border-b border-white/30 focus:outline-none mr-2"
+                      />
+                    ) : (
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <svg className="w-3.5 h-3.5 text-[#C9A84C]/60 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                        <span className="text-xs text-white/80 truncate">{folder.name}</span>
+                        <span className="text-[10px] text-white/25 flex-shrink-0 ml-1">
+                          {folder.videos.length} vídeo{folder.videos.length !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                      <button
+                        onClick={() => { setRenamingFolderId(folder.id); setRenamingName(folder.name) }}
+                        className="p-1 text-white/25 hover:text-white/60 transition-colors"
+                        title="Renomear"
+                      >
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button
+                        onClick={() => deleteFolder(folder.id)}
+                        className="p-1 text-white/25 hover:text-red-400 transition-colors"
+                        title="Remover pasta"
+                      >
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 6h18M19 6l-1 14H6L5 6M10 6V4h4v2"/></svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Assign videos to folder */}
+                  {videos.length > 0 ? (
+                    <div className="px-3 py-2.5 flex flex-col gap-1.5">
+                      {videos.map(v => {
+                        const inFolder = folder.videos.some(fv => fv.id === v.id)
+                        return (
+                          <label key={v.id} className="flex items-center gap-2.5 cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              checked={inFolder}
+                              onChange={() => assignVideoToFolder(v.id, inFolder ? null : folder.id)}
+                              className="w-3.5 h-3.5 rounded accent-[#C9A84C] cursor-pointer"
+                            />
+                            {v.thumbnailUrl
+                              ? <img src={v.thumbnailUrl} className="w-9 h-5 object-cover rounded flex-shrink-0" alt="" />
+                              : <div className="w-9 h-5 bg-white/8 rounded flex-shrink-0" />
+                            }
+                            <span className="text-xs text-white/50 group-hover:text-white/75 transition-colors truncate flex-1">{v.title}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="px-3 py-2 text-[10px] text-white/20">Adicione vídeos para organizar em pastas</p>
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
@@ -736,14 +787,34 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                 ))}
               </div>
 
-              <SectionTitle>Tipografia</SectionTitle>
-              <div className="flex flex-col gap-2 mb-6">
-                {Object.keys(FONT_MAP).map(font => (
-                  <button key={font} onClick={async () => { setFontFamily(font); await patch({ fontFamily: font }) }}
-                    className={`flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all ${fontFamily === font ? "border-[#C9A84C]/60 bg-[#C9A84C]/6" : "border-white/10 hover:border-white/18"}`}>
-                    <span style={{ fontFamily: FONT_MAP[font], fontSize: "1.05rem", fontWeight: 300 }}>João & Maria</span>
-                    {fontFamily === font && <span className="w-3.5 h-3.5 rounded-full bg-[#C9A84C] flex-shrink-0 ml-2" />}
-                  </button>
+              <SectionTitle>Tipografia do Título</SectionTitle>
+              <p className="text-[10px] text-white/25 mb-4 leading-relaxed">
+                A fonte afeta apenas o <strong className="text-white/40">título principal</strong> da galeria.<br/>
+                A logo e os textos da interface permanecem fixos.
+              </p>
+              <div className="flex flex-col gap-5 mb-6">
+                {FONT_GROUPS.map(group => (
+                  <div key={group.label}>
+                    <p className="text-[9px] tracking-[0.2em] uppercase text-white/20 mb-2">{group.label}</p>
+                    <div className="flex flex-col gap-1.5">
+                      {group.fonts.map(font => (
+                        <button key={font} onClick={async () => { setFontFamily(font); await patch({ fontFamily: font }) }}
+                          className={`flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all ${
+                            fontFamily === font ? "border-[#C9A84C]/60 bg-[#C9A84C]/6" : "border-white/10 hover:border-white/20"
+                          }`}>
+                          <div className="flex flex-col items-start gap-0.5 flex-1 min-w-0">
+                            <span style={{ fontFamily: FONT_MAP[font], fontSize: "1.1rem", fontWeight: 300, lineHeight: 1.1 }}>
+                              João &amp; Maria
+                            </span>
+                            <span className="text-[9px] text-white/25 tracking-wide">{font}</span>
+                          </div>
+                          {fontFamily === font && (
+                            <span className="w-3 h-3 rounded-full bg-[#C9A84C] flex-shrink-0 ml-2" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
 
