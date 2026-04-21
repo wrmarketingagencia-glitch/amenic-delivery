@@ -2,8 +2,7 @@
 
 import Image from "next/image"
 
-// Vídeo será adicionado após upload para o CDN
-// const HERO_VIDEO = "https://amenicfotos.b-cdn.net/landing/trailer-hero.mp4"
+const HERO_VIDEO = "https://AMENICFOTOS.b-cdn.net/landing/trailer-hero.mp4"
 const WHATSAPP = "https://api.whatsapp.com/send?phone=5561993265625&text=Ol%C3%A1%21+Vim+pelo+site+da+Amenic+Filmes."
 const INSTAGRAM = "https://www.instagram.com/amenicfilmes"
 
@@ -54,15 +53,15 @@ function Navbar() {
   )
 }
 
-/* ── Hero com foto de fundo ─────────────────────────────────────── */
+/* ── Hero com vídeo de fundo ────────────────────────────────────── */
 function Hero() {
   return (
     <section className="relative h-screen flex items-end overflow-hidden">
-      {/* Foto de fundo */}
-      <img
-        src="/landing/fotos/3B9A9618.jpg"
-        alt=""
+      {/* Vídeo fundo */}
+      <video
+        autoPlay muted loop playsInline
         className="absolute inset-0 w-full h-full object-cover"
+        src={HERO_VIDEO}
       />
       {/* Gradientes */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-black/60" />
@@ -86,9 +85,12 @@ function Hero() {
             className="inline-flex items-center gap-3 px-8 py-4 bg-white text-black text-sm tracking-widest uppercase font-medium hover:bg-white/90 transition-colors">
             <WhatsAppIcon /> Entre em Contato
           </a>
-          <a href="/g/demo"
+          <a href="/studio/login"
             className="inline-flex items-center gap-2 px-8 py-4 border border-white/25 text-white/70 text-sm tracking-wider hover:bg-white/5 transition-colors">
-            Ver galeria de entrega →
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <path d="M15 10l-4 4L7 10M12 3v11M5 21h14" />
+            </svg>
+            Acessar Galeria
           </a>
         </div>
       </div>
