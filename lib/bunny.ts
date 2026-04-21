@@ -31,7 +31,7 @@ export async function uploadToStorage(
         AccessKey: STORAGE_KEY!,
         "Content-Type": "application/octet-stream",
       },
-      body: buffer,
+      body: buffer as unknown as BodyInit,
     }
   )
   if (!res.ok) {
@@ -82,7 +82,7 @@ export async function uploadToStream(
         AccessKey: STREAM_API_KEY!,
         "Content-Type": "application/octet-stream",
       },
-      body: buffer,
+      body: buffer as unknown as BodyInit,
     }
   )
   if (!uploadRes.ok) {
