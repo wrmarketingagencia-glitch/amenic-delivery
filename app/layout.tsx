@@ -3,7 +3,7 @@ import "./globals.css"
 
 // Google Fonts para seleção de tipografia nas galerias
 const GOOGLE_FONTS_URL =
-  "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Playfair+Display:ital,wght@0,400;0,500;1,400&display=swap"
+  "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap"
 
 export const metadata: Metadata = {
   title: "Amenic Filmes — Cinema Documental",

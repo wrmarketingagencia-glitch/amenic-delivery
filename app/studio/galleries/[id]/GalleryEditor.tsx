@@ -1,214 +1,337 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useCallback } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import type { Gallery, Video, Photo } from "@/app/generated/prisma/client"
+import type { Gallery, Video, Photo, Folder } from "@/app/generated/prisma/client"
+import { FONT_MAP } from "@/app/g/[slug]/GalleryViewer"
 
-type GalleryWithAll = Gallery & { videos: Video[]; photos: Photo[] }
-type Section = "videos" | "photos" | "heading" | "background" | "colors" | "share"
+type FolderWithItems = Folder & { videos: Video[]; photos: Photo[] }
+type GalleryWithAll = Gallery & { videos: Video[]; photos: Photo[]; folders: FolderWithItems[] }
+type Section = "upload" | "link" | "heading" | "background" | "music" | "styles" | "settings" | "deliver"
 
-// ─── Icons ──────────────────────────────────────────────────────────────────
-const IconVideos = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-  </svg>
-)
-const IconPhotos = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-  </svg>
-)
-const IconHeading = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h8m-8 6h16" />
-  </svg>
-)
-const IconBackground = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 14l4-4 4 4 4-6 4 4" />
-  </svg>
-)
-const IconColors = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-  </svg>
-)
-const IconShare = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-  </svg>
-)
-
-const SECTIONS: { id: Section; label: string; Icon: React.FC }[] = [
-  { id: "videos",     label: "Vídeos",     Icon: IconVideos },
-  { id: "photos",     label: "Fotos",      Icon: IconPhotos },
-  { id: "heading",    label: "Título",     Icon: IconHeading },
-  { id: "background", label: "Capa",       Icon: IconBackground },
-  { id: "colors",     label: "Cores",      Icon: IconColors },
-  { id: "share",      label: "Compartilhar", Icon: IconShare },
+const LAYOUTS = [
+  {
+    id: "gatsby",
+    name: "Gatsby",
+    desc: "Múltiplos vídeos",
+    preview: (
+      <div className="w-full h-20 bg-[#1a1a1a] rounded overflow-hidden relative flex flex-col">
+        <div className="flex-1 bg-gradient-to-r from-[#222] to-[#333] relative flex items-end p-2">
+          <div>
+            <div className="h-2 w-16 bg-white/60 rounded mb-1" />
+            <div className="h-1.5 w-10 bg-white/30 rounded" />
+          </div>
+        </div>
+        <div className="flex gap-1 p-1 bg-[#111]">
+          {[1,2,3].map(i => <div key={i} className="w-12 h-7 bg-white/10 rounded flex-shrink-0" />)}
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "solace",
+    name: "Solace",
+    desc: "Foco único",
+    preview: (
+      <div className="w-full h-20 bg-[#1a1a1a] rounded overflow-hidden flex">
+        <div className="flex-1 bg-gradient-to-br from-[#222] to-[#2a2a2a] flex items-center justify-center">
+          <div className="w-6 h-6 rounded-full border border-white/30 flex items-center justify-center">
+            <div className="w-0 h-0 border-t-4 border-b-4 border-l-6 border-transparent border-l-white/60 ml-0.5" />
+          </div>
+        </div>
+        <div className="w-16 bg-[#111] p-1.5 flex flex-col gap-1">
+          {[1,2,3].map(i => <div key={i} className="h-4 bg-white/10 rounded" />)}
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "cinema",
+    name: "Cinema",
+    desc: "Imersivo",
+    preview: (
+      <div className="w-full h-20 bg-black rounded overflow-hidden flex items-center justify-center relative">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+        <div className="text-white/40 text-xs tracking-widest uppercase z-10">PLAY</div>
+      </div>
+    ),
+  },
 ]
 
-// ─── Main component ──────────────────────────────────────────────────────────
+const FONT_LABELS: Record<string, string> = {
+  "Playfair Display": "Playfair Display",
+  "Merriweather":     "Merriweather",
+  "Lora":             "Lora",
+  "Ginger":           "Ginger",
+  "TheMacksen":       "TheMacksen",
+  "Bridamount":       "Bridamount",
+  "Thimberly":        "Thimberly",
+  "Shintia":          "Shintia",
+  "Housttely":        "Housttely",
+}
+
+/* ── Sidebar nav icons ─────────────────────────────────────────── */
+const NavItem = ({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) => (
+  <button onClick={onClick}
+    className={`flex flex-col items-center gap-1 py-3 w-full transition-all ${active ? "text-[#C9A84C]" : "text-white/35 hover:text-white/60"}`}>
+    <div className={`w-5 h-5 ${active ? "opacity-100" : "opacity-60"}`}>{icon}</div>
+    <span className="text-[9px] tracking-wider uppercase">{label}</span>
+  </button>
+)
+
+/* ── Section header ─────────────────────────────────────────────── */
+const SectionTitle = ({ children, className }: { children: React.ReactNode; className?: string }) => (
+  <h3 className={`text-xs tracking-[0.2em] uppercase text-white/40 font-light mb-4 ${className ?? ""}`}>{children}</h3>
+)
+
 export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
-  const [section, setSection] = useState<Section>("videos")
+  const [section, setSection] = useState<Section>("upload")
   const [videos, setVideos] = useState<Video[]>(gallery.videos)
   const [photos, setPhotos] = useState<Photo[]>(gallery.photos)
   const [published, setPublished] = useState(gallery.isPublished)
 
+  // Upload state
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadingVideo, setUploadingVideo] = useState("")
+  const [uploadError, setUploadError] = useState("")
+  const videoFileRef = useRef<HTMLInputElement>(null)
+  const photoFileRef = useRef<HTMLInputElement>(null)
+
+  // Link Videos state
+  const [linkTitle, setLinkTitle] = useState("")
+  const [linkMp4, setLinkMp4] = useState("")
+  const [linkHls, setLinkHls] = useState("")
+  const [linkThumb, setLinkThumb] = useState("")
+
   // Heading state
   const [title, setTitle] = useState(gallery.title)
   const [subtitle, setSubtitle] = useState(gallery.subtitle || "")
-  const [fontFamily, setFontFamily] = useState(gallery.fontFamily || "Georgia")
-
+  const [headingSaved, setHeadingSaved] = useState(false)
 
   // Background state
   const [coverUrl, setCoverUrl] = useState(gallery.coverImageUrl || "")
   const [uploadingCover, setUploadingCover] = useState(false)
-
-  // Colors state
-  const [primaryColor, setPrimaryColor] = useState(gallery.primaryColor || "#C9A84C")
-
-  // Share state
-  const [password, setPassword] = useState(gallery.password || "")
-  const [linkCopied, setLinkCopied] = useState(false)
-
-  // Video upload state
-  const [videoTitle, setVideoTitle] = useState("")
-  const [videoMp4, setVideoMp4] = useState("")
-  const [videoHls, setVideoHls] = useState("")
-  const [videoThumb, setVideoThumb] = useState("")
-  const [addMode, setAddMode] = useState<"upload" | "url" | null>(null)
-  const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
-
-  // Photo upload state
-  const [photoUrl, setPhotoUrl] = useState("")
-  const [photoCaption, setPhotoCaption] = useState("")
-  const [addPhotoMode, setAddPhotoMode] = useState(false)
-  const [uploadingPhoto, setUploadingPhoto] = useState(false)
-  const [photoUploadProgress, setPhotoUploadProgress] = useState(0)
-
-  const fileRef = useRef<HTMLInputElement>(null)
-  const photoFileRef = useRef<HTMLInputElement>(null)
   const coverFileRef = useRef<HTMLInputElement>(null)
 
-  // ── Saving helpers ────────────────────────────────────────────────────────
-  const patch = async (data: Record<string, unknown>) => {
+  // Music state
+  const [musicUrl, setMusicUrl] = useState(gallery.musicUrl || "")
+  const [musicSaved, setMusicSaved] = useState(false)
+
+  // Styles state
+  const [fontFamily, setFontFamily] = useState(gallery.fontFamily || "Playfair Display")
+  const [primaryColor, setPrimaryColor] = useState(gallery.primaryColor || "#C9A84C")
+  const [layout, setLayout] = useState(gallery.layout || "gatsby")
+
+  // Settings state
+  const [password, setPassword] = useState(gallery.password || "")
+  const [slug, setSlug] = useState(gallery.slug)
+  const [settingsSaved, setSettingsSaved] = useState(false)
+
+  // Folders state
+  const [folders, setFolders] = useState<FolderWithItems[]>(gallery.folders ?? [])
+  const [newFolderName, setNewFolderName] = useState("")
+  const [creatingFolder, setCreatingFolder] = useState(false)
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null)
+  const [renamingName, setRenamingName] = useState("")
+
+  // Preview refresh key — increments to reload iframe when content changes
+  const [previewKey, setPreviewKey] = useState(0)
+  const refreshPreview = useCallback(() => setPreviewKey(k => k + 1), [])
+
+  /* ── Folder CRUD ──────────────────────────────────────────────── */
+  const createFolder = async () => {
+    if (!newFolderName.trim()) return
+    setCreatingFolder(true)
+    const res = await fetch(`/api/galleries/${gallery.id}/folders`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newFolderName.trim() }),
+    })
+    if (res.ok) {
+      const folder = await res.json()
+      setFolders(f => [...f, { ...folder, videos: [], photos: [] }])
+      setNewFolderName("")
+    }
+    setCreatingFolder(false)
+  }
+
+  const deleteFolder = async (folderId: string) => {
+    if (!confirm("Remover esta pasta? Os vídeos e fotos não serão apagados.")) return
+    const res = await fetch(`/api/galleries/${gallery.id}/folders?folderId=${folderId}`, { method: "DELETE" })
+    if (res.ok) setFolders(f => f.filter(x => x.id !== folderId))
+  }
+
+  const renameFolder = async (folderId: string) => {
+    if (!renamingName.trim()) return
+    const res = await fetch(`/api/galleries/${gallery.id}/folders`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, name: renamingName.trim() }),
+    })
+    if (res.ok) {
+      setFolders(f => f.map(x => x.id === folderId ? { ...x, name: renamingName.trim() } : x))
+      setRenamingFolderId(null)
+    }
+  }
+
+  const assignVideoToFolder = async (videoId: string, folderId: string | null) => {
+    await fetch(`/api/galleries/${gallery.id}/folders/assign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "video", itemId: videoId, folderId }),
+    })
+    // Update local state
+    const video = videos.find(v => v.id === videoId)
+    if (!video) return
+    setFolders(prev => prev.map(f => {
+      if (f.id === folderId) return { ...f, videos: [...f.videos.filter(v => v.id !== videoId), video] }
+      return { ...f, videos: f.videos.filter(v => v.id !== videoId) }
+    }))
+  }
+
+  /* ── Helpers ─────────────────────────────────────────────────── */
+  const patch = useCallback(async (data: Record<string, unknown>) => {
     await fetch(`/api/galleries/${gallery.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     })
-  }
+  }, [gallery.id])
 
-  // ── Video upload ──────────────────────────────────────────────────────────
-  const handleFileUpload = (file: File) => {
-    if (!videoTitle) { alert("Digite um nome para o vídeo primeiro"); return }
-    setUploading(true); setUploadProgress(0)
+  /* ── Upload video ───────────────────────────────────────────── */
+  const handleVideoUpload = async (file: File) => {
+    const name = file.name.replace(/\.[^.]+$/, "")
+    setUploadingVideo(name)
+    setUploading(true)
+    setUploadProgress(0)
+    setUploadError("")
+
     const form = new FormData()
     form.append("file", file)
     form.append("folder", gallery.id)
-    form.append("type", "video")
-    form.append("title", videoTitle)
+
     const xhr = new XMLHttpRequest()
     xhr.open("POST", "/api/upload")
+    xhr.withCredentials = true
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100))
     }
     xhr.onload = async () => {
       if (xhr.status === 200) {
-        const data = JSON.parse(xhr.responseText)
-        await addVideo({ mp4Url: data.url, hlsUrl: data.hlsUrl ?? null, thumbnailUrl: data.thumbnailUrl ?? null })
-      } else { alert("Erro no upload") }
-      setUploading(false); setUploadProgress(0)
+        try {
+          const data = JSON.parse(xhr.responseText)
+          if (!data.url) {
+            setUploadError(data.error || "Upload não retornou URL")
+          } else {
+            const res = await fetch(`/api/galleries/${gallery.id}/videos`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title: name,
+                mp4Url: data.url,
+                hlsUrl: data.hlsUrl || null,
+                thumbnailUrl: data.thumbnailUrl || null,
+              }),
+            })
+            if (res.ok) {
+              const video = await res.json()
+              setVideos(v => [...v, video])
+              refreshPreview()
+            } else {
+              const err = await res.json().catch(() => ({}))
+              setUploadError(err.error || `Erro ao salvar vídeo (${res.status})`)
+            }
+          }
+        } catch {
+          setUploadError("Erro ao processar resposta do upload")
+        }
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText)
+          setUploadError(err.error || `Upload falhou (${xhr.status})`)
+        } catch {
+          setUploadError(`Upload falhou (${xhr.status})`)
+        }
+      }
+      setUploading(false)
+      setUploadProgress(0)
+      setUploadingVideo("")
     }
-    xhr.onerror = () => { setUploading(false); alert("Erro no upload") }
+    xhr.onerror = () => {
+      setUploadError("Erro de conexão durante o upload")
+      setUploading(false)
+      setUploadingVideo("")
+    }
     xhr.send(form)
   }
 
-  const addVideo = async (extra: Partial<Video>) => {
+  /* ── Link video ─────────────────────────────────────────────── */
+  const handleLinkVideo = async () => {
+    if (!linkTitle || (!linkMp4 && !linkHls)) return
     const res = await fetch(`/api/galleries/${gallery.id}/videos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: videoTitle || "Sem título", ...extra }),
+      body: JSON.stringify({ title: linkTitle, mp4Url: linkMp4 || null, hlsUrl: linkHls || null, thumbnailUrl: linkThumb || null }),
     })
     if (res.ok) {
       const video = await res.json()
-      setVideos((v) => [...v, video])
-      setVideoTitle(""); setVideoMp4(""); setVideoHls(""); setVideoThumb(""); setAddMode(null)
+      setVideos(v => [...v, video])
+      setLinkTitle(""); setLinkMp4(""); setLinkHls(""); setLinkThumb("")
+      refreshPreview()
     }
   }
 
+  /* ── Delete video ───────────────────────────────────────────── */
   const deleteVideo = async (videoId: string) => {
     if (!confirm("Remover este vídeo?")) return
     const res = await fetch(`/api/galleries/${gallery.id}/videos?videoId=${videoId}`, { method: "DELETE" })
-    if (res.ok) setVideos((v) => v.filter((x) => x.id !== videoId))
+    if (res.ok) setVideos(v => v.filter(x => x.id !== videoId))
   }
 
-  // ── Photo upload ──────────────────────────────────────────────────────────
-  const handlePhotoFileUpload = (file: File) => {
-    setUploadingPhoto(true); setPhotoUploadProgress(0)
+  /* ── Upload cover ───────────────────────────────────────────── */
+  const handleCoverUpload = async (file: File) => {
+    setUploadingCover(true)
     const form = new FormData()
     form.append("file", file)
     form.append("folder", gallery.id)
-    const xhr = new XMLHttpRequest()
-    xhr.open("POST", "/api/upload")
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) setPhotoUploadProgress(Math.round((e.loaded / e.total) * 100))
+    const res = await fetch("/api/upload", { method: "POST", body: form })
+    if (res.ok) {
+      const data = await res.json()
+      setCoverUrl(data.url)
+      await patch({ coverImageUrl: data.url })
     }
-    xhr.onload = async () => {
-      if (xhr.status === 200) {
-        const data = JSON.parse(xhr.responseText)
-        await addPhoto(data.url)
-      } else { alert("Erro no upload") }
-      setUploadingPhoto(false); setPhotoUploadProgress(0)
-    }
-    xhr.onerror = () => { setUploadingPhoto(false); alert("Erro no upload") }
-    xhr.send(form)
+    setUploadingCover(false)
   }
 
-  const addPhoto = async (url: string, caption?: string) => {
-    const res = await fetch(`/api/galleries/${gallery.id}/photos`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, caption: caption || photoCaption || null }),
-    })
+  /* ── Upload photo ───────────────────────────────────────────── */
+  const handlePhotoUpload = async (file: File) => {
+    const form = new FormData()
+    form.append("file", file)
+    form.append("folder", gallery.id)
+    const res = await fetch("/api/upload", { method: "POST", body: form })
     if (res.ok) {
-      const photo = await res.json()
-      setPhotos((p) => [...p, photo])
-      setPhotoUrl(""); setPhotoCaption(""); setAddPhotoMode(false)
+      const data = await res.json()
+      const photoRes = await fetch(`/api/galleries/${gallery.id}/photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: data.url }),
+      })
+      if (photoRes.ok) {
+        const photo = await photoRes.json()
+        setPhotos(p => [...p, photo])
+      }
     }
   }
 
   const deletePhoto = async (photoId: string) => {
     if (!confirm("Remover esta foto?")) return
     const res = await fetch(`/api/galleries/${gallery.id}/photos?photoId=${photoId}`, { method: "DELETE" })
-    if (res.ok) setPhotos((p) => p.filter((x) => x.id !== photoId))
+    if (res.ok) setPhotos(p => p.filter(x => x.id !== photoId))
   }
 
-  // ── Cover image upload ────────────────────────────────────────────────────
-  const handleCoverUpload = (file: File) => {
-    setUploadingCover(true)
-    const form = new FormData()
-    form.append("file", file)
-    form.append("folder", `${gallery.id}/cover`)
-    const xhr = new XMLHttpRequest()
-    xhr.open("POST", "/api/upload")
-    xhr.onload = async () => {
-      if (xhr.status === 200) {
-        const data = JSON.parse(xhr.responseText)
-        setCoverUrl(data.url)
-        await patch({ coverImageUrl: data.url })
-      } else { alert("Erro no upload da capa") }
-      setUploadingCover(false)
-    }
-    xhr.onerror = () => { setUploadingCover(false); alert("Erro") }
-    xhr.send(form)
-  }
-
-  // ── Toggle publish ────────────────────────────────────────────────────────
+  /* ── Publish ────────────────────────────────────────────────── */
   const togglePublish = async () => {
     if (!published) {
       await fetch(`/api/galleries/${gallery.id}/publish`, { method: "POST" })
@@ -219,249 +342,276 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     }
   }
 
-  const galleryUrl = typeof window !== "undefined"
+  const galleryLink = typeof window !== "undefined"
     ? `${window.location.origin}/g/${gallery.slug}`
     : `/g/${gallery.slug}`
 
-  const inputCls = "w-full px-4 py-2.5 rounded-lg bg-white/5 text-white placeholder-white/30 border border-white/10 focus:outline-none focus:border-white/30 text-sm"
-  const btnPrimary = "px-5 py-2.5 bg-[#C9A84C] text-black text-sm font-semibold rounded-lg hover:bg-[#d4b55a] disabled:opacity-40 transition-colors"
-  const btnGhost = "px-4 py-2 text-sm text-white/60 border border-white/15 rounded-lg hover:bg-white/10 transition-colors"
-
+  /* ── Render ─────────────────────────────────────────────────── */
   return (
     <div className="min-h-screen bg-[#111] text-white flex flex-col">
 
-      {/* ── Top nav ──────────────────────────────────────────────────── */}
-      <nav className="border-b border-white/10 px-6 py-3.5 flex items-center justify-between flex-shrink-0">
+      {/* ── Top bar ──────────────────────────────────────────── */}
+      <nav className="h-12 border-b border-white/8 flex items-center justify-between px-4 flex-shrink-0 bg-[#111] z-30">
         <div className="flex items-center gap-3">
-          <Link href="/studio/dashboard" className="text-white/40 hover:text-white text-sm transition-colors">
-            ← Dashboard
+          <Link href="/studio/dashboard" className="flex items-center gap-1.5 text-white/35 hover:text-white/70 transition-colors text-xs">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/>
+            </svg>
+            Dashboard
           </Link>
-          <span className="text-white/20">/</span>
-          <span className="text-white/70 text-sm truncate max-w-52">{gallery.title}</span>
+          <span className="text-white/15">·</span>
+          <span className="text-white/55 text-xs truncate max-w-40">{gallery.title}</span>
         </div>
-        <div className="flex items-center gap-3">
-          <a
-            href={`/g/${gallery.slug}`}
-            target="_blank"
-            className="text-sm text-white/40 hover:text-white transition-colors"
-          >
-            Ver galeria ↗
+        <div className="flex items-center gap-2">
+          <a href={`/g/${gallery.slug}`} target="_blank"
+            className="text-xs text-white/35 hover:text-white/60 transition-colors px-3 py-1.5 rounded border border-white/10 hover:border-white/20">
+            Visualizar
           </a>
-          <button
-            onClick={togglePublish}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              published
-                ? "bg-green-500/15 text-green-400 border border-green-500/25 hover:bg-green-500/25"
-                : "bg-[#C9A84C] text-black hover:bg-[#d4b55a]"
-            }`}
-          >
+          <button onClick={togglePublish}
+            className={`text-xs px-4 py-1.5 rounded transition-all font-light tracking-wide ${
+              published ? "bg-white/8 text-white/60 hover:bg-white/12 border border-white/10" : "bg-[#C9A84C] text-black hover:bg-[#d4b55a]"
+            }`}>
             {published ? "✓ Publicada" : "Publicar"}
           </button>
         </div>
       </nav>
 
-      {/* ── Body ─────────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* ── Sidebar ──────────────────────────────────────────────── */}
-        <aside className="w-[72px] bg-[#0e0e0e] border-r border-white/10 flex flex-col items-center py-4 gap-1 flex-shrink-0">
-          {SECTIONS.map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              onClick={() => setSection(id)}
-              className="w-full flex flex-col items-center gap-1 py-3 px-1 transition-colors relative"
-              style={section === id ? { color: "#C9A84C" } : { color: "rgba(255,255,255,0.4)" }}
-            >
-              {section === id && (
-                <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-[#C9A84C] rounded-r" />
-              )}
-              <Icon />
-              <span className="text-[9px] font-medium leading-none tracking-wide">{label}</span>
-            </button>
-          ))}
+        {/* ── Icon sidebar ─────────────────────────────────── */}
+        <aside className="w-[62px] flex-shrink-0 border-r border-white/8 bg-[#0e0e0e] flex flex-col overflow-y-auto">
+          <NavItem active={section === "upload"} onClick={() => setSection("upload")} label="Upload"
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>} />
+          <NavItem active={section === "link"} onClick={() => setSection("link")} label="Vídeos"
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg>} />
+          <NavItem active={section === "heading"} onClick={() => setSection("heading")} label="Título"
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h7"/></svg>} />
+          <NavItem active={section === "background"} onClick={() => setSection("background")} label="Capa"
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>} />
+          <NavItem active={section === "music"} onClick={() => setSection("music")} label="Música"
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>} />
+          <NavItem active={section === "styles"} onClick={() => setSection("styles")} label="Estilos"
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>} />
+          <NavItem active={section === "settings"} onClick={() => setSection("settings")} label="Config"
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>} />
+          <NavItem active={section === "deliver"} onClick={() => setSection("deliver")} label="Entrega"
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>} />
         </aside>
 
-        {/* ── Panel ────────────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto p-7 max-w-2xl">
+        {/* ── Section panel ────────────────────────────────── */}
+        <div className="w-72 flex-shrink-0 border-r border-white/8 bg-[#111] overflow-y-auto p-5">
 
-          {/* VIDEOS */}
-          {section === "videos" && (
+          {/* UPLOAD */}
+          {section === "upload" && (
             <div>
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="font-semibold text-lg">Vídeos</h2>
-                  <p className="text-white/40 text-sm mt-0.5">{videos.length} vídeo{videos.length !== 1 ? "s" : ""}</p>
+              <SectionTitle>Upload de Vídeo</SectionTitle>
+              <input ref={videoFileRef} type="file" accept="video/*" multiple className="hidden"
+                onChange={e => { if (e.target.files) Array.from(e.target.files).forEach(handleVideoUpload) }} />
+
+              {uploading ? (
+                <div className="p-4 bg-white/5 rounded-lg border border-white/10 mb-4">
+                  <p className="text-xs text-white/60 mb-1 truncate">{uploadingVideo}</p>
+                  <div className="flex justify-between text-xs text-white/40 mb-2">
+                    <span>Enviando para Bunny.net…</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="h-px bg-white/10 overflow-hidden rounded">
+                    <div className="h-full bg-[#C9A84C] transition-all" style={{ width: `${uploadProgress}%` }} />
+                  </div>
                 </div>
-                {!addMode && (
-                  <div className="flex gap-2">
-                    <button onClick={() => setAddMode("upload")} className={btnGhost}>↑ Upload</button>
-                    <button onClick={() => setAddMode("url")} className={btnGhost}>+ URL</button>
-                  </div>
-                )}
-              </div>
+              ) : (
+                <button onClick={() => videoFileRef.current?.click()}
+                  className="w-full py-10 border border-dashed border-white/15 rounded-lg text-white/30 hover:text-white/50 hover:border-white/25 transition-all text-xs tracking-wider flex flex-col items-center gap-3 mb-5">
+                  <svg className="w-8 h-8 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  <span>Clique para selecionar vídeo</span>
+                  <span className="text-white/20 text-[10px]">MP4, MOV, AVI — armazenado no Bunny.net</span>
+                </button>
+              )}
 
-              {addMode && (
-                <div className="mb-6 p-5 bg-white/5 rounded-xl border border-white/10">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm font-medium">
-                      {addMode === "upload" ? "Upload de vídeo" : "Adicionar por URL"}
-                    </span>
-                    <button onClick={() => setAddMode(null)} className="text-white/30 hover:text-white text-lg leading-none">×</button>
-                  </div>
-                  <div className="flex flex-col gap-3">
-                    <input type="text" value={videoTitle} onChange={(e) => setVideoTitle(e.target.value)} placeholder="Nome do vídeo (ex: Cerimônia)" className={inputCls} />
-
-                    {addMode === "upload" ? (
-                      <>
-                        <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])} />
-                        {uploading ? (
-                          <div className="rounded-lg bg-white/5 p-4 border border-white/10">
-                            <div className="flex justify-between text-sm text-white/60 mb-2">
-                              <span>Enviando para Bunny Stream...</span>
-                              <span>{uploadProgress}%</span>
-                            </div>
-                            <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                              <div className="h-full bg-[#C9A84C] rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
-                            </div>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => fileRef.current?.click()}
-                            className="w-full py-10 border border-dashed border-white/15 rounded-xl text-white/30 hover:text-white/60 hover:border-white/30 transition-colors text-sm flex flex-col items-center gap-3"
-                          >
-                            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                            </svg>
-                            Clique para selecionar o vídeo
-                          </button>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <input type="url" value={videoMp4} onChange={(e) => setVideoMp4(e.target.value)} placeholder="URL do MP4" className={inputCls} />
-                        <input type="url" value={videoHls} onChange={(e) => setVideoHls(e.target.value)} placeholder="URL do HLS (.m3u8) — opcional" className={inputCls} />
-                        <input type="url" value={videoThumb} onChange={(e) => setVideoThumb(e.target.value)} placeholder="URL da thumbnail — opcional" className={inputCls} />
-                        <button
-                          onClick={() => addVideo({ mp4Url: videoMp4 || null, hlsUrl: videoHls || null, thumbnailUrl: videoThumb || null })}
-                          disabled={!videoMp4 && !videoHls}
-                          className={btnPrimary}
-                        >
-                          Adicionar Vídeo
-                        </button>
-                      </>
-                    )}
-                  </div>
+              {uploadError && (
+                <div className="mb-4 p-3 rounded-lg bg-red-900/20 border border-red-500/30">
+                  <p className="text-xs text-red-400 leading-relaxed">{uploadError}</p>
+                  <button onClick={() => setUploadError("")} className="text-[10px] text-red-400/60 mt-1 hover:text-red-400">Fechar</button>
                 </div>
               )}
 
-              {videos.length === 0 ? (
-                <div className="text-center py-16 border border-dashed border-white/10 rounded-xl">
-                  <IconVideos />
-                  <p className="text-white/30 text-sm mt-3">Nenhum vídeo ainda</p>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {videos.map((v, i) => (
-                    <div key={v.id} className="flex items-center gap-3 p-3 bg-white/5 hover:bg-white/8 rounded-xl border border-white/10 transition-colors group">
-                      <span className="text-white/20 text-xs w-4 text-center flex-shrink-0">{i + 1}</span>
-                      <div className="w-16 h-10 flex-shrink-0 rounded overflow-hidden bg-white/10 relative">
-                        {v.thumbnailUrl ? (
-                          <Image src={v.thumbnailUrl} alt="" fill className="object-cover" sizes="64px" />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <svg className="w-4 h-4 text-white/20" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                          </div>
-                        )}
+              <SectionTitle>Upload de Fotos</SectionTitle>
+              <input ref={photoFileRef} type="file" accept="image/*" multiple className="hidden"
+                onChange={e => { if (e.target.files) Array.from(e.target.files).forEach(handlePhotoUpload) }} />
+              <button onClick={() => photoFileRef.current?.click()}
+                className="w-full py-6 border border-dashed border-white/15 rounded-lg text-white/30 hover:text-white/50 hover:border-white/25 transition-all text-xs tracking-wider flex flex-col items-center gap-2 mb-5">
+                <svg className="w-6 h-6 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                </svg>
+                <span>Upload de fotos (múltiplas)</span>
+              </button>
+
+              {/* Video list */}
+              {videos.length > 0 && (
+                <>
+                  <SectionTitle>Vídeos ({videos.length})</SectionTitle>
+                  <div className="flex flex-col gap-2">
+                    {videos.map((v, i) => (
+                      <div key={v.id} className="flex items-center gap-2 p-2.5 bg-white/4 rounded-lg border border-white/8 group">
+                        <span className="text-white/20 text-xs w-4 text-center flex-shrink-0">{i + 1}</span>
+                        {v.thumbnailUrl
+                          ? <img src={v.thumbnailUrl} className="w-12 h-7 object-cover rounded flex-shrink-0" alt="" />
+                          : <div className="w-12 h-7 bg-white/8 rounded flex-shrink-0 flex items-center justify-center"><svg className="w-3 h-3 text-white/20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21"/></svg></div>
+                        }
+                        <p className="text-xs text-white/60 flex-1 truncate font-light">{v.title}</p>
+                        <button onClick={() => deleteVideo(v.id)} className="text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 6h18M19 6l-1 14H6L5 6M10 6V4h4v2"/>
+                          </svg>
+                        </button>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{v.title}</p>
-                        <p className="text-white/30 text-xs truncate mt-0.5">{v.hlsUrl || v.mp4Url}</p>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* ── Subpastas ──────────────────────────────────── */}
+              <SectionTitle className="mt-5">Subpastas</SectionTitle>
+
+              {/* Create folder */}
+              <div className="flex gap-2 mb-4">
+                <input
+                  value={newFolderName}
+                  onChange={e => setNewFolderName(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && createFolder()}
+                  placeholder="Nome da pasta…"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/25 focus:outline-none focus:border-white/30"
+                />
+                <button
+                  onClick={createFolder}
+                  disabled={creatingFolder || !newFolderName.trim()}
+                  className="px-3 py-2 rounded-lg bg-white/8 hover:bg-white/12 border border-white/10 text-white/60 hover:text-white transition-all text-xs disabled:opacity-40"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                </button>
+              </div>
+
+              {folders.length === 0 && (
+                <p className="text-xs text-white/20 text-center py-3">Nenhuma pasta criada</p>
+              )}
+
+              {folders.map(folder => (
+                <div key={folder.id} className="mb-3 rounded-lg border border-white/8 overflow-hidden">
+                  {/* Folder header */}
+                  <div className="flex items-center justify-between px-3 py-2.5 bg-white/5">
+                    {renamingFolderId === folder.id ? (
+                      <input
+                        value={renamingName}
+                        onChange={e => setRenamingName(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") renameFolder(folder.id); if (e.key === "Escape") setRenamingFolderId(null) }}
+                        onBlur={() => renameFolder(folder.id)}
+                        autoFocus
+                        className="flex-1 bg-transparent text-xs text-white border-b border-white/30 focus:outline-none mr-2"
+                      />
+                    ) : (
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <svg className="w-3.5 h-3.5 text-white/40 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                        <span className="text-xs text-white/70 font-light truncate">{folder.name}</span>
+                        <span className="text-[10px] text-white/25 flex-shrink-0">{folder.videos.length} vídeo{folder.videos.length !== 1 ? "s" : ""}</span>
                       </div>
+                    )}
+                    <div className="flex items-center gap-1 ml-2">
                       <button
-                        onClick={() => deleteVideo(v.id)}
-                        className="text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                        onClick={() => { setRenamingFolderId(folder.id); setRenamingName(folder.name) }}
+                        className="p-1 text-white/25 hover:text-white/60 transition-colors"
+                        title="Renomear"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button
+                        onClick={() => deleteFolder(folder.id)}
+                        className="p-1 text-white/25 hover:text-red-400 transition-colors"
+                        title="Remover pasta"
+                      >
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 6h18M19 6l-1 14H6L5 6M10 6V4h4v2"/></svg>
                       </button>
                     </div>
-                  ))}
+                  </div>
+
+                  {/* Assign videos to folder */}
+                  {videos.length > 0 && (
+                    <div className="px-3 py-2.5 flex flex-col gap-1.5">
+                      {videos.map(v => {
+                        const inFolder = folder.videos.some(fv => fv.id === v.id)
+                        return (
+                          <label key={v.id} className="flex items-center gap-2.5 cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              checked={inFolder}
+                              onChange={() => assignVideoToFolder(v.id, inFolder ? null : folder.id)}
+                              className="w-3.5 h-3.5 rounded accent-[#C9A84C] cursor-pointer"
+                            />
+                            {v.thumbnailUrl
+                              ? <img src={v.thumbnailUrl} className="w-9 h-5 object-cover rounded flex-shrink-0" alt="" />
+                              : <div className="w-9 h-5 bg-white/8 rounded flex-shrink-0" />
+                            }
+                            <span className="text-xs text-white/50 group-hover:text-white/70 transition-colors truncate flex-1">{v.title}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {videos.length === 0 && (
+                    <p className="px-3 py-2 text-[10px] text-white/20">Adicione vídeos para organizar em pastas</p>
+                  )}
                 </div>
+              ))}
+
+              {/* Photo grid */}
+              {photos.length > 0 && (
+                <>
+                  <SectionTitle className="mt-4">Fotos ({photos.length})</SectionTitle>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {photos.map(p => (
+                      <div key={p.id} className="relative group aspect-square rounded overflow-hidden bg-white/5">
+                        <img src={p.url} className="w-full h-full object-cover" alt="" />
+                        <button onClick={() => deletePhoto(p.id)}
+                          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <svg className="w-4 h-4 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           )}
 
-          {/* PHOTOS */}
-          {section === "photos" && (
+          {/* LINK VIDEOS */}
+          {section === "link" && (
             <div>
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="font-semibold text-lg">Fotos</h2>
-                  <p className="text-white/40 text-sm mt-0.5">{photos.length} foto{photos.length !== 1 ? "s" : ""}</p>
-                </div>
-                {!addPhotoMode && (
-                  <div className="flex gap-2">
-                    <button onClick={() => { setAddPhotoMode(true); setTimeout(() => photoFileRef.current?.click(), 50) }} className={btnGhost}>↑ Upload</button>
-                    <button onClick={() => setAddPhotoMode(true)} className={btnGhost}>+ URL</button>
-                  </div>
-                )}
+              <SectionTitle>Vincular Vídeo por URL</SectionTitle>
+              <div className="flex flex-col gap-3">
+                <input value={linkTitle} onChange={e => setLinkTitle(e.target.value)} placeholder="Nome do vídeo"
+                  className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/12 text-sm text-white placeholder-white/25 focus:outline-none focus:border-[#C9A84C]/50 font-light" />
+                <input value={linkHls} onChange={e => setLinkHls(e.target.value)} placeholder="URL HLS (.m3u8) — recomendado"
+                  className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/12 text-sm text-white placeholder-white/25 focus:outline-none focus:border-[#C9A84C]/50 font-light" />
+                <input value={linkMp4} onChange={e => setLinkMp4(e.target.value)} placeholder="URL MP4"
+                  className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/12 text-sm text-white placeholder-white/25 focus:outline-none focus:border-[#C9A84C]/50 font-light" />
+                <input value={linkThumb} onChange={e => setLinkThumb(e.target.value)} placeholder="URL thumbnail (opcional)"
+                  className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/12 text-sm text-white placeholder-white/25 focus:outline-none focus:border-[#C9A84C]/50 font-light" />
+                <button onClick={handleLinkVideo} disabled={!linkTitle || (!linkMp4 && !linkHls)}
+                  className="py-2.5 bg-[#C9A84C] text-black text-xs tracking-widest uppercase rounded font-medium hover:bg-[#d4b55a] disabled:opacity-30 transition-colors">
+                  Adicionar Vídeo
+                </button>
               </div>
-
-              <input ref={photoFileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => {
-                if (e.target.files) Array.from(e.target.files).forEach(handlePhotoFileUpload)
-              }} />
-
-              {addPhotoMode && (
-                <div className="mb-6 p-5 bg-white/5 rounded-xl border border-white/10">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm font-medium">Adicionar foto</span>
-                    <button onClick={() => setAddPhotoMode(false)} className="text-white/30 hover:text-white text-lg">×</button>
-                  </div>
-                  {uploadingPhoto ? (
-                    <div className="rounded-lg bg-white/5 p-4 mb-4 border border-white/10">
-                      <div className="flex justify-between text-sm text-white/60 mb-2">
-                        <span>Enviando...</span><span>{photoUploadProgress}%</span>
-                      </div>
-                      <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#C9A84C] rounded-full transition-all" style={{ width: `${photoUploadProgress}%` }} />
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => photoFileRef.current?.click()}
-                      className="w-full py-8 border border-dashed border-white/15 rounded-xl text-white/30 hover:text-white/60 hover:border-white/30 transition-colors text-sm flex flex-col items-center gap-2 mb-4"
-                    >
-                      <IconPhotos />
-                      Upload de fotos (múltiplas)
-                    </button>
-                  )}
-                  <div className="flex flex-col gap-2.5">
-                    <input type="url" value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="Ou cole a URL da imagem" className={inputCls} />
-                    <input type="text" value={photoCaption} onChange={(e) => setPhotoCaption(e.target.value)} placeholder="Legenda (opcional)" className={inputCls} />
-                    <button onClick={() => addPhoto(photoUrl)} disabled={!photoUrl} className={btnPrimary}>
-                      Adicionar Foto
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {photos.length === 0 ? (
-                <div className="text-center py-16 border border-dashed border-white/10 rounded-xl">
-                  <p className="text-white/30 text-sm">Nenhuma foto ainda</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                  {photos.map((p) => (
-                    <div key={p.id} className="relative group aspect-square rounded-lg overflow-hidden bg-white/5">
-                      <Image src={p.url} alt={p.caption || ""} fill className="object-cover" sizes="150px" />
-                      <button
-                        onClick={() => deletePhoto(p.id)}
-                        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-white/50 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+              {videos.length > 0 && (
+                <div className="mt-6 flex flex-col gap-2">
+                  {videos.map((v, i) => (
+                    <div key={v.id} className="flex items-center gap-2 p-2.5 bg-white/4 rounded-lg border border-white/8 group">
+                      <span className="text-white/20 text-xs w-4">{i + 1}</span>
+                      <p className="text-xs text-white/60 flex-1 truncate font-light">{v.title}</p>
+                      <button onClick={() => deleteVideo(v.id)} className="text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
                       </button>
                     </div>
                   ))}
@@ -473,60 +623,24 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
           {/* HEADING */}
           {section === "heading" && (
             <div>
-              <h2 className="font-semibold text-lg mb-1">Título e Fontes</h2>
-              <p className="text-white/40 text-sm mb-6">Personaliza o título, subtítulo e tipografia da galeria.</p>
-              <div className="flex flex-col gap-4">
+              <SectionTitle>Título da Galeria</SectionTitle>
+              <div className="flex flex-col gap-3">
                 <div>
-                  <label className="text-xs text-white/40 uppercase tracking-widest mb-1.5 block">Título</label>
-                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} placeholder="Ex: João & Maria" />
+                  <label className="text-[10px] tracking-widest uppercase text-white/30 block mb-1.5">Título</label>
+                  <input value={title} onChange={e => setTitle(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/12 text-sm text-white focus:outline-none focus:border-[#C9A84C]/50 font-light" />
                 </div>
                 <div>
-                  <label className="text-xs text-white/40 uppercase tracking-widest mb-1.5 block">Subtítulo</label>
-                  <input type="text" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} className={inputCls} placeholder="Ex: Casamento • Março 2025 • Brasília" />
+                  <label className="text-[10px] tracking-widest uppercase text-white/30 block mb-1.5">Subtítulo</label>
+                  <input value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder="Ex: Fazenda das Flores · 12 de Janeiro"
+                    className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/12 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#C9A84C]/50 font-light" />
                 </div>
-                <div>
-                  <label className="text-xs text-white/40 uppercase tracking-widest mb-1.5 block">Fonte do título</label>
-                  <div className="grid grid-cols-1 gap-2">
-                    {[
-                      { value: "Georgia",    css: "Georgia, serif",         sample: "João & Maria",         desc: "Clássica • Serif padrão" },
-                      { value: "Ginger",     css: "'Ginger', serif",         sample: "João & Maria",         desc: "Elegante • Ligaduras refinadas" },
-                      { value: "TheMacksen", css: "'TheMacksen', serif",     sample: "João & Maria",         desc: "Moderno • Traço fino" },
-                      { value: "Bridamount", css: "'Bridamount', cursive",   sample: "João & Maria",         desc: "Script • Estilo casamento" },
-                      { value: "Thimberly",  css: "'Thimberly', cursive",    sample: "João & Maria",         desc: "Script • Traço elegante" },
-                      { value: "Shintia",    css: "'Shintia', cursive",      sample: "João & Maria",         desc: "Script • Romântica" },
-                      { value: "Housttely",  css: "'Housttely', cursive",    sample: "João & Maria",         desc: "Assinatura • Manuscrita" },
-                    ].map((f) => (
-                      <button
-                        key={f.value}
-                        onClick={() => setFontFamily(f.value)}
-                        className="flex items-center justify-between px-4 py-3 rounded-lg border transition-all text-left"
-                        style={fontFamily === f.value
-                          ? { borderColor: "#C9A84C", background: "rgba(201,168,76,0.08)" }
-                          : { borderColor: "rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)" }
-                        }
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-base leading-tight truncate" style={{ fontFamily: f.css }}>
-                            {f.sample}
-                          </p>
-                          <p className="text-white/35 text-[10px] mt-1 tracking-wide">{f.value} — {f.desc}</p>
-                        </div>
-                        {fontFamily === f.value && (
-                          <div className="w-4 h-4 rounded-full bg-[#C9A84C] flex items-center justify-center flex-shrink-0 ml-3">
-                            <svg className="w-2.5 h-2.5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <button
-                  onClick={() => patch({ title, subtitle: subtitle || null, fontFamily })}
-                  className={btnPrimary}
-                >
-                  Salvar
+                <button onClick={async () => {
+                  await patch({ title, subtitle: subtitle || null })
+                  setHeadingSaved(true); setTimeout(() => setHeadingSaved(false), 2000)
+                }}
+                  className="py-2.5 bg-[#C9A84C] text-black text-xs tracking-widest uppercase rounded font-medium hover:bg-[#d4b55a] transition-colors">
+                  {headingSaved ? "✓ Salvo" : "Salvar"}
                 </button>
               </div>
             </div>
@@ -535,178 +649,243 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
           {/* BACKGROUND */}
           {section === "background" && (
             <div>
-              <h2 className="font-semibold text-lg mb-1">Imagem de Capa</h2>
-              <p className="text-white/40 text-sm mb-6">Aparece como fundo do hero na galeria do cliente.</p>
+              <SectionTitle>Imagem de Capa</SectionTitle>
+              <input ref={coverFileRef} type="file" accept="image/*" className="hidden"
+                onChange={e => e.target.files?.[0] && handleCoverUpload(e.target.files[0])} />
 
               {coverUrl && (
-                <div className="relative aspect-video rounded-xl overflow-hidden mb-4 border border-white/10">
-                  <Image src={coverUrl} alt="Capa" fill className="object-cover" sizes="600px" />
-                  <button
-                    onClick={() => { setCoverUrl(""); patch({ coverImageUrl: null }) }}
-                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 text-white/60 hover:text-red-400 flex items-center justify-center transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                <div className="relative mb-4 rounded-lg overflow-hidden aspect-video bg-white/5">
+                  <img src={coverUrl} className="w-full h-full object-cover" alt="" />
+                  <button onClick={() => { setCoverUrl(""); patch({ coverImageUrl: null }) }}
+                    className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/70 flex items-center justify-center text-white/60 hover:text-red-400 transition-colors">
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
                   </button>
                 </div>
               )}
 
-              <input ref={coverFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleCoverUpload(e.target.files[0])} />
-              <button
-                onClick={() => coverFileRef.current?.click()}
-                disabled={uploadingCover}
-                className="w-full py-10 border border-dashed border-white/15 rounded-xl text-white/30 hover:text-white/60 hover:border-white/30 transition-colors text-sm flex flex-col items-center gap-3 mb-4"
-              >
-                <IconBackground />
-                {uploadingCover ? "Enviando..." : "Upload de imagem de capa"}
+              <button onClick={() => coverFileRef.current?.click()} disabled={uploadingCover}
+                className="w-full py-6 border border-dashed border-white/15 rounded-lg text-white/30 hover:text-white/50 hover:border-white/25 transition-all text-xs tracking-wider flex flex-col items-center gap-2 mb-4">
+                {uploadingCover ? "Enviando…" : (
+                  <>
+                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <span>Upload de imagem</span>
+                  </>
+                )}
               </button>
 
+              <div>
+                <label className="text-[10px] tracking-widest uppercase text-white/30 block mb-1.5">Ou cole uma URL</label>
+                <div className="flex gap-2">
+                  <input value={coverUrl} onChange={e => setCoverUrl(e.target.value)} placeholder="https://…"
+                    className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/12 text-xs text-white placeholder-white/20 focus:outline-none focus:border-[#C9A84C]/50 font-light" />
+                  <button onClick={() => patch({ coverImageUrl: coverUrl || null })}
+                    className="px-3 py-2 bg-white/8 hover:bg-white/15 rounded-lg text-xs text-white/60 border border-white/10 transition-colors">
+                    OK
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MUSIC */}
+          {section === "music" && (
+            <div>
+              <SectionTitle>Música de Fundo</SectionTitle>
+              <p className="text-white/30 text-xs font-light mb-4 leading-relaxed">
+                Toca suavemente enquanto o cliente navega pela galeria. Cole a URL de um arquivo de áudio (MP3, AAC).
+              </p>
+              <div className="flex flex-col gap-3">
+                <input value={musicUrl} onChange={e => setMusicUrl(e.target.value)} placeholder="URL do áudio (MP3, AAC…)"
+                  className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/12 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#C9A84C]/50 font-light" />
+                {musicUrl && (
+                  <audio controls src={musicUrl} className="w-full h-8 opacity-70" />
+                )}
+                <button onClick={async () => {
+                  await patch({ musicUrl: musicUrl || null })
+                  setMusicSaved(true); setTimeout(() => setMusicSaved(false), 2000)
+                }}
+                  className="py-2.5 bg-[#C9A84C] text-black text-xs tracking-widest uppercase rounded font-medium hover:bg-[#d4b55a] transition-colors">
+                  {musicSaved ? "✓ Salvo" : "Salvar Música"}
+                </button>
+                {musicUrl && (
+                  <button onClick={() => { setMusicUrl(""); patch({ musicUrl: null }) }}
+                    className="py-2 text-xs text-white/30 hover:text-red-400 transition-colors">
+                    Remover música
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* STYLES */}
+          {section === "styles" && (
+            <div>
+              <SectionTitle>Layout</SectionTitle>
+              <div className="grid grid-cols-1 gap-3 mb-6">
+                {LAYOUTS.map(l => (
+                  <button key={l.id} onClick={async () => { setLayout(l.id); await patch({ layout: l.id }) }}
+                    className={`p-2.5 rounded-lg border text-left transition-all ${layout === l.id ? "border-[#C9A84C]/60 bg-[#C9A84C]/6" : "border-white/10 hover:border-white/20"}`}>
+                    {l.preview}
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-xs text-white/70 font-light">{l.name}</span>
+                      <span className="text-[10px] text-white/30">{l.desc}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <SectionTitle>Tipografia</SectionTitle>
+              <div className="flex flex-col gap-2 mb-6">
+                {Object.keys(FONT_MAP).map(font => (
+                  <button key={font} onClick={async () => { setFontFamily(font); await patch({ fontFamily: font }) }}
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all ${fontFamily === font ? "border-[#C9A84C]/60 bg-[#C9A84C]/6" : "border-white/10 hover:border-white/18"}`}>
+                    <span style={{ fontFamily: FONT_MAP[font], fontSize: "1.05rem", fontWeight: 300 }}>João & Maria</span>
+                    {fontFamily === font && <span className="w-3.5 h-3.5 rounded-full bg-[#C9A84C] flex-shrink-0 ml-2" />}
+                  </button>
+                ))}
+              </div>
+
+              <SectionTitle>Cor de Destaque</SectionTitle>
+              <div className="flex items-center gap-3 mb-3">
+                <input type="color" value={primaryColor} onChange={e => setPrimaryColor(e.target.value)}
+                  className="w-10 h-10 rounded cursor-pointer bg-transparent border-0" />
+                <input value={primaryColor} onChange={e => setPrimaryColor(e.target.value)} maxLength={7}
+                  className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/12 text-sm text-white font-mono font-light focus:outline-none focus:border-[#C9A84C]/50" />
+                <button onClick={() => patch({ primaryColor })}
+                  className="px-3 py-2 bg-white/8 hover:bg-white/15 rounded-lg text-xs text-white/60 border border-white/10 transition-colors">OK</button>
+              </div>
               <div className="flex gap-2">
-                <input
-                  type="url"
-                  value={coverUrl}
-                  onChange={(e) => setCoverUrl(e.target.value)}
-                  placeholder="Ou cole a URL da imagem"
-                  className={`${inputCls} flex-1`}
-                />
-                <button onClick={() => patch({ coverImageUrl: coverUrl || null })} className={btnPrimary}>
-                  Salvar
+                {["#C9A84C","#B8A89A","#8B7355","#D4C5B5","#1a1a1a"].map(c => (
+                  <button key={c} onClick={() => { setPrimaryColor(c); patch({ primaryColor: c }) }}
+                    className="w-7 h-7 rounded-full border-2 transition-all" style={{ backgroundColor: c, borderColor: primaryColor === c ? "white" : "transparent" }} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SETTINGS */}
+          {section === "settings" && (
+            <div>
+              <SectionTitle>Controle de Acesso</SectionTitle>
+              <div className="flex flex-col gap-2 mb-6">
+                {[
+                  { value: "", label: "Link Direto", desc: "Qualquer pessoa com o link acessa" },
+                  { value: "PROTECTED", label: "Com Senha", desc: "Exige senha para acessar" },
+                ].map(opt => (
+                  <button key={opt.value}
+                    onClick={() => { if (opt.value === "") { setPassword(""); patch({ password: null }) } }}
+                    className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all ${
+                      (opt.value === "" ? !password : !!password) ? "border-[#C9A84C]/50 bg-[#C9A84C]/6" : "border-white/10 hover:border-white/18"
+                    }`}>
+                    <div className={`w-4 h-4 rounded-full border flex-shrink-0 mt-0.5 flex items-center justify-center ${
+                      (opt.value === "" ? !password : !!password) ? "border-[#C9A84C] bg-[#C9A84C]" : "border-white/30"
+                    }`}>
+                      {(opt.value === "" ? !password : !!password) && <span className="w-1.5 h-1.5 rounded-full bg-black" />}
+                    </div>
+                    <div>
+                      <p className="text-xs text-white/70 font-light">{opt.label}</p>
+                      <p className="text-[10px] text-white/30 mt-0.5">{opt.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Password input */}
+              <div className="mb-6">
+                <label className="text-[10px] tracking-widest uppercase text-white/30 block mb-1.5">Senha da galeria</label>
+                <div className="flex gap-2">
+                  <input type="text" value={password} onChange={e => setPassword(e.target.value)} placeholder="Deixe vazio para sem senha"
+                    className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/12 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#C9A84C]/50 font-light" />
+                  <button onClick={() => patch({ password: password || null })}
+                    className="px-3 py-2 bg-white/8 hover:bg-white/15 rounded-lg text-xs text-white/60 border border-white/10 transition-colors">OK</button>
+                </div>
+              </div>
+
+              <SectionTitle>URL da Galeria</SectionTitle>
+              <div className="flex gap-2">
+                <input value={slug} onChange={e => setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+                  className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/12 text-sm text-white font-light focus:outline-none focus:border-[#C9A84C]/50" />
+                <button onClick={async () => { await patch({ slug }); setSettingsSaved(true); setTimeout(() => setSettingsSaved(false), 2000) }}
+                  className="px-3 py-2 bg-white/8 hover:bg-white/15 rounded-lg text-xs text-white/60 border border-white/10 transition-colors">
+                  {settingsSaved ? "✓" : "Salvar"}
                 </button>
               </div>
+              <p className="text-[10px] text-white/25 mt-2 font-light">/g/{slug}</p>
+
+              <div className="mt-6 p-3 bg-white/4 rounded-lg border border-white/8">
+                <p className="text-[10px] text-white/40 leading-relaxed">
+                  <strong className="text-white/60">Domínio customizado</strong><br />
+                  Para links como <span className="text-[#C9A84C]/70">galeria.amenicfilmes.com.br/{slug}</span>, adicione um CNAME <code className="text-white/50">galeria</code> apontando para o seu app Netlify e configure o domínio personalizado no painel da Netlify.
+                </p>
+              </div>
             </div>
           )}
 
-          {/* COLORS */}
-          {section === "colors" && (
+          {/* DELIVER */}
+          {section === "deliver" && (
             <div>
-              <h2 className="font-semibold text-lg mb-1">Identidade Visual</h2>
-              <p className="text-white/40 text-sm mb-6">Cor de destaque usada nos botões e elementos interativos.</p>
+              <SectionTitle>Entrega ao Cliente</SectionTitle>
 
-              <div className="mb-6">
-                <label className="text-xs text-white/40 uppercase tracking-widest mb-3 block">Cor primária</label>
-                <div className="flex items-center gap-4">
-                  <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-white/10 flex-shrink-0">
-                    <input
-                      type="color"
-                      value={primaryColor}
-                      onChange={(e) => setPrimaryColor(e.target.value)}
-                      className="absolute inset-0 w-full h-full cursor-pointer opacity-0"
-                    />
-                    <div className="absolute inset-0 rounded-xl" style={{ background: primaryColor }} />
-                  </div>
-                  <div className="flex-1">
-                    <input
-                      type="text"
-                      value={primaryColor}
-                      onChange={(e) => setPrimaryColor(e.target.value)}
-                      className={inputCls}
-                      placeholder="#C9A84C"
-                    />
-                  </div>
-                </div>
+              <div className="p-3 rounded-lg bg-white/5 border border-white/10 mb-4">
+                <p className="text-[10px] text-white/40 mb-1.5 tracking-wider uppercase">Link da galeria</p>
+                <p className="text-xs text-white/75 font-light break-all mb-3">{galleryLink}</p>
+                <button onClick={() => navigator.clipboard?.writeText(galleryLink)}
+                  className="w-full py-2 border border-white/15 hover:border-white/30 rounded text-xs text-white/50 hover:text-white/80 tracking-widest uppercase transition-all">
+                  Copiar Link
+                </button>
               </div>
 
-              <div className="mb-6">
-                <label className="text-xs text-white/40 uppercase tracking-widest mb-3 block">Paletas sugeridas</label>
-                <div className="grid grid-cols-5 gap-2">
-                  {["#C9A84C", "#D4956A", "#9B8B6E", "#7C9E8F", "#8B7BA8"].map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => setPrimaryColor(c)}
-                      className="aspect-square rounded-lg border-2 transition-all"
-                      style={{
-                        background: c,
-                        borderColor: primaryColor === c ? "white" : "transparent",
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="p-4 bg-white/5 rounded-xl border border-white/10 mb-6">
-                <p className="text-xs text-white/40 mb-2">Prévia</p>
-                <div className="flex items-center gap-3">
-                  <button
-                    className="px-5 py-2 text-sm font-semibold text-black"
-                    style={{ background: primaryColor }}
-                  >
-                    ▶ Reproduzir Tudo
-                  </button>
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: primaryColor }}>
-                    <svg className="w-4 h-4 text-black" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                  </div>
-                </div>
-              </div>
-
-              <button onClick={() => patch({ primaryColor })} className={btnPrimary}>
-                Salvar cor
-              </button>
-            </div>
-          )}
-
-          {/* SHARE */}
-          {section === "share" && (
-            <div>
-              <h2 className="font-semibold text-lg mb-1">Compartilhar</h2>
-              <p className="text-white/40 text-sm mb-6">Configurações de acesso e link da galeria.</p>
-
-              <div className="flex flex-col gap-4">
-                <div className="p-4 bg-white/5 rounded-xl border border-white/10">
-                  <p className="text-xs text-white/40 uppercase tracking-widest mb-2">Link da galeria</p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-sm text-[#C9A84C] truncate">{galleryUrl}</code>
-                    <button
-                      onClick={() => { navigator.clipboard?.writeText(galleryUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) }}
-                      className={btnGhost}
-                    >
-                      {linkCopied ? "✓ Copiado" : "Copiar"}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs text-white/40 uppercase tracking-widest mb-1.5 block">
-                    Senha de acesso <span className="normal-case">(deixe vazio para acesso livre)</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Ex: casamento2025"
-                      className={`${inputCls} flex-1`}
-                    />
-                    <button onClick={() => patch({ password: password || null })} className={btnPrimary}>
-                      Salvar
-                    </button>
-                  </div>
-                  <p className="text-white/30 text-xs mt-1.5">
-                    {password ? "Galeria protegida por senha." : "Galeria acessível por qualquer pessoa com o link."}
+              {!published && (
+                <div className="p-3 rounded-lg bg-amber-900/20 border border-amber-500/20 mb-4">
+                  <p className="text-[10px] text-amber-400/80 leading-relaxed">
+                    A galeria ainda não está publicada. Publique antes de enviar o link ao cliente.
                   </p>
                 </div>
+              )}
 
-                <div className="p-4 bg-white/5 rounded-xl border border-white/10">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">Galeria publicada</p>
-                      <p className="text-white/40 text-xs mt-0.5">
-                        {published ? "Visível para os clientes" : "Rascunho — só você pode ver"}
-                      </p>
-                    </div>
-                    <button
-                      onClick={togglePublish}
-                      className={`w-12 h-6 rounded-full transition-colors relative ${published ? "bg-green-500" : "bg-white/20"}`}
-                    >
-                      <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${published ? "left-6.5" : "left-0.5"}`} />
-                    </button>
-                  </div>
-                </div>
+              <button onClick={togglePublish}
+                className={`w-full py-3 rounded text-xs tracking-widest uppercase font-medium transition-all mb-6 ${
+                  published ? "bg-white/8 text-white/50 border border-white/15 hover:bg-white/12" : "bg-[#C9A84C] text-black hover:bg-[#d4b55a]"
+                }`}>
+                {published ? "✓ Publicada — Clique para despublicar" : "Publicar Galeria"}
+              </button>
+
+              <SectionTitle>Informações para o Cliente</SectionTitle>
+              <div className="text-xs text-white/35 font-light leading-relaxed space-y-2">
+                <p>• Envie o link acima por WhatsApp ou e-mail</p>
+                <p>• O cliente acessa sem precisar criar conta</p>
+                <p>• Para domínio próprio como <span className="text-[#C9A84C]/60">galeria.amenicfilmes.com.br/{slug}</span>, configure o CNAME no seu provedor DNS</p>
+                <p>• Ative senha na aba Config para proteção adicional</p>
               </div>
             </div>
           )}
+        </div>
 
-        </main>
+        {/* ── Preview area ──────────────────────────────────── */}
+        <div className="flex-1 bg-[#0d0d0d] flex items-center justify-center overflow-hidden">
+          <div className="text-center">
+            <div className="w-[600px] h-[380px] bg-[#0a0a0a] rounded-lg border border-white/8 overflow-hidden relative shadow-2xl mx-auto">
+              <iframe
+                key={previewKey}
+                src={`/g/${gallery.slug}`}
+                className="w-full h-full border-0 pointer-events-none"
+                style={{ transform: "scale(0.95)", transformOrigin: "center center" }}
+                title="Preview"
+              />
+              {!published && (
+                <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                  <p className="text-white/40 text-xs tracking-widest uppercase">Publique para ver o preview</p>
+                </div>
+              )}
+            </div>
+            <a href={`/g/${gallery.slug}`} target="_blank"
+              className="mt-4 inline-block text-xs text-white/25 hover:text-white/50 tracking-widest uppercase transition-colors">
+              Abrir em nova aba →
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   )

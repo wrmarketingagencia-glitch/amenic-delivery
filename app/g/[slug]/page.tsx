@@ -2,6 +2,8 @@ import { db } from "@/lib/db"
 import { notFound } from "next/navigation"
 import { GalleryViewer } from "./GalleryViewer"
 
+export const dynamic = "force-dynamic"
+
 interface Props {
   params: Promise<{ slug: string }>
   searchParams: Promise<{ pw?: string }>
@@ -11,7 +13,7 @@ export default async function GalleryPage({ params, searchParams }: Props) {
   const { slug } = await params
   const { pw } = await searchParams
 
-  const gallery = await db.gallery.findUnique({
+  const gallery = await db.gallery.findFirst({
     where: { slug, isPublished: true },
     include: {
       studio: true,

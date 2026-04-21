@@ -22,27 +22,43 @@ model Studio {
 }
 
 model Gallery {
-  id            String   @id @default(cuid())
-  studioId      String
-  studio        Studio   @relation(fields: [studioId], references: [id], onDelete: Cascade)
-  slug          String   @unique
-  title         String
-  subtitle      String?
-  coverImageUrl String?
-  primaryColor  String?
-  fontFamily    String   @default("Georgia")
-  password      String?
-  isPublished   Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  videos        Video[]
-  photos        Photo[]
+  id             String   @id @default(cuid())
+  studioId       String
+  studio         Studio   @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  slug           String   @unique
+  title          String
+  subtitle       String?
+  coverImageUrl  String?
+  password       String?
+  isPublished    Boolean  @default(false)
+  fontFamily     String   @default("Playfair Display")
+  primaryColor   String   @default("#C9A84C")
+  layout         String   @default("gatsby")
+  musicUrl       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  videos         Video[]
+  photos         Photo[]
+  folders        Folder[]
+}
+
+model Folder {
+  id        String   @id @default(cuid())
+  galleryId String
+  gallery   Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  name      String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  videos    Video[]
+  photos    Photo[]
 }
 
 model Video {
   id              String   @id @default(cuid())
   galleryId       String
   gallery         Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  folderId        String?
+  folder          Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
   title           String
   hlsUrl          String?
   mp4Url          String?
@@ -59,6 +75,8 @@ model Photo {
   id           String   @id @default(cuid())
   galleryId    String
   gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  folderId     String?
+  folder       Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
   url          String
   thumbnailUrl String?
   caption      String?
