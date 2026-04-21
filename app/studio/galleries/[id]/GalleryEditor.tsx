@@ -8,13 +8,13 @@ import { FONT_MAP } from "@/app/g/[slug]/GalleryViewer"
 
 type FolderWithItems = Folder & { videos: Video[]; photos: Photo[] }
 type GalleryWithAll = Gallery & { videos: Video[]; photos: Photo[]; folders: FolderWithItems[] }
-type Section = "upload" | "link" | "folders" | "heading" | "background" | "music" | "styles" | "settings" | "deliver"
+type Section = "upload" | "link" | "heading" | "background" | "music" | "styles" | "settings" | "deliver"
 
 const LAYOUTS = [
   {
     id: "gatsby",
     name: "Gatsby",
-    desc: "Múltiplos vídeos",
+    desc: "Tela cheia + faixa",
     preview: (
       <div className="w-full h-20 bg-[#1a1a1a] rounded overflow-hidden relative flex flex-col">
         <div className="flex-1 bg-gradient-to-r from-[#222] to-[#333] relative flex items-end p-2">
@@ -30,18 +30,22 @@ const LAYOUTS = [
     ),
   },
   {
-    id: "solace",
-    name: "Solace",
-    desc: "Foco único",
+    id: "editorial",
+    name: "Editorial",
+    desc: "Herói + capítulos",
     preview: (
-      <div className="w-full h-20 bg-[#1a1a1a] rounded overflow-hidden flex">
+      <div className="w-full h-20 bg-[#1a1a1a] rounded overflow-hidden flex flex-col">
+        <div className="h-6 bg-[#111] px-2 flex items-center justify-between">
+          <div className="h-1.5 w-12 bg-white/40 rounded" />
+          <div className="flex gap-1">{[1,2].map(i => <div key={i} className="w-3 h-1 bg-white/20 rounded" />)}</div>
+        </div>
         <div className="flex-1 bg-gradient-to-br from-[#222] to-[#2a2a2a] flex items-center justify-center">
-          <div className="w-6 h-6 rounded-full border border-white/30 flex items-center justify-center">
-            <div className="w-0 h-0 border-t-4 border-b-4 border-l-6 border-transparent border-l-white/60 ml-0.5" />
+          <div className="w-5 h-5 rounded-full border border-white/30 flex items-center justify-center">
+            <div className="w-0 h-0 border-t-3 border-b-3 border-l-4 border-transparent border-l-white/60 ml-0.5" />
           </div>
         </div>
-        <div className="w-16 bg-[#111] p-1.5 flex flex-col gap-1">
-          {[1,2,3].map(i => <div key={i} className="h-4 bg-white/10 rounded" />)}
+        <div className="flex gap-1 p-1 bg-[#0e0e0e]">
+          {[1,2,3,4].map(i => <div key={i} className="flex-1 h-4 bg-white/8 rounded" />)}
         </div>
       </div>
     ),
@@ -49,11 +53,18 @@ const LAYOUTS = [
   {
     id: "cinema",
     name: "Cinema",
-    desc: "Imersivo",
+    desc: "Sidebar + player",
     preview: (
-      <div className="w-full h-20 bg-black rounded overflow-hidden flex items-center justify-center relative">
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-        <div className="text-white/40 text-xs tracking-widest uppercase z-10">PLAY</div>
+      <div className="w-full h-20 bg-black rounded overflow-hidden flex">
+        <div className="w-14 bg-[#0e0e0e] p-1.5 flex flex-col gap-1 border-r border-white/8">
+          <div className="h-1.5 w-8 bg-white/40 rounded mb-0.5" />
+          {[1,2,3].map(i => <div key={i} className="flex gap-1 items-center"><div className="w-5 h-3 bg-white/10 rounded flex-shrink-0" /><div className="h-1 flex-1 bg-white/15 rounded" /></div>)}
+        </div>
+        <div className="flex-1 bg-gradient-to-br from-[#181818] to-[#111] flex items-center justify-center">
+          <div className="w-5 h-5 rounded-full border border-white/25 flex items-center justify-center">
+            <div className="w-0 h-0 border-t-3 border-b-3 border-l-4 border-transparent border-l-white/50 ml-0.5" />
+          </div>
+        </div>
       </div>
     ),
   },
@@ -395,12 +406,6 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
               <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
               <polygon points="10 8 16 10.5 10 13" fill="currentColor" stroke="none" opacity="0.7"/>
             </svg>} />
-          {/* Subpastas — item dedicado */}
-          <NavItem active={section === "folders"} onClick={() => setSection("folders")} label="Pastas"
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
-              <line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>
-            </svg>} />
           {/* Título */}
           <NavItem active={section === "heading"} onClick={() => setSection("heading")} label="Título"
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
@@ -530,6 +535,108 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                   </div>
                 </>
               )}
+
+              {/* ── SUBPASTAS ───────────────────────────────────── */}
+              <div className="mt-6 pt-5 border-t border-white/8">
+                <SectionTitle>Subpastas</SectionTitle>
+                <p className="text-white/25 text-[11px] font-light mb-4 leading-relaxed">
+                  Organize os vídeos em capítulos — ex: &ldquo;Cerimônia&rdquo;, &ldquo;Festa&rdquo;, &ldquo;Making Of&rdquo;.
+                </p>
+
+                {/* Create folder */}
+                <div className="flex gap-2 mb-4">
+                  <input
+                    value={newFolderName}
+                    onChange={e => setNewFolderName(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && createFolder()}
+                    placeholder="Nome da pasta…"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/25 focus:outline-none focus:border-[#C9A84C]/40"
+                  />
+                  <button
+                    onClick={createFolder}
+                    disabled={creatingFolder || !newFolderName.trim()}
+                    className="px-3 py-2 rounded-lg bg-[#C9A84C]/10 hover:bg-[#C9A84C]/20 border border-[#C9A84C]/20 text-[#C9A84C] transition-all text-xs disabled:opacity-40"
+                    title="Criar pasta"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                  </button>
+                </div>
+
+                {folders.length === 0 && (
+                  <div className="text-center py-6 text-white/20 text-xs">
+                    <svg className="w-8 h-8 mx-auto mb-2 opacity-20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                    <p>Nenhuma pasta criada ainda</p>
+                  </div>
+                )}
+
+                {folders.map(folder => (
+                  <div key={folder.id} className="mb-3 rounded-lg border border-white/8 overflow-hidden">
+                    {/* Folder header */}
+                    <div className="flex items-center justify-between px-3 py-2.5 bg-white/5">
+                      {renamingFolderId === folder.id ? (
+                        <input
+                          value={renamingName}
+                          onChange={e => setRenamingName(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter") renameFolder(folder.id); if (e.key === "Escape") setRenamingFolderId(null) }}
+                          onBlur={() => renameFolder(folder.id)}
+                          autoFocus
+                          className="flex-1 bg-transparent text-xs text-white border-b border-white/30 focus:outline-none mr-2"
+                        />
+                      ) : (
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <svg className="w-3.5 h-3.5 text-[#C9A84C]/60 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                          <span className="text-xs text-white/80 truncate">{folder.name}</span>
+                          <span className="text-[10px] text-white/25 flex-shrink-0 ml-1">
+                            {folder.videos.length} vídeo{folder.videos.length !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                        <button
+                          onClick={() => { setRenamingFolderId(folder.id); setRenamingName(folder.name) }}
+                          className="p-1 text-white/25 hover:text-white/60 transition-colors"
+                          title="Renomear"
+                        >
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                        <button
+                          onClick={() => deleteFolder(folder.id)}
+                          className="p-1 text-white/25 hover:text-red-400 transition-colors"
+                          title="Remover pasta"
+                        >
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 6h18M19 6l-1 14H6L5 6M10 6V4h4v2"/></svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Assign videos to folder */}
+                    {videos.length > 0 ? (
+                      <div className="px-3 py-2.5 flex flex-col gap-1.5">
+                        {videos.map(v => {
+                          const inFolder = folder.videos.some(fv => fv.id === v.id)
+                          return (
+                            <label key={v.id} className="flex items-center gap-2.5 cursor-pointer group">
+                              <input
+                                type="checkbox"
+                                checked={inFolder}
+                                onChange={() => assignVideoToFolder(v.id, inFolder ? null : folder.id)}
+                                className="w-3.5 h-3.5 rounded accent-[#C9A84C] cursor-pointer"
+                              />
+                              {v.thumbnailUrl
+                                ? <img src={v.thumbnailUrl} className="w-9 h-5 object-cover rounded flex-shrink-0" alt="" />
+                                : <div className="w-9 h-5 bg-white/8 rounded flex-shrink-0" />
+                              }
+                              <span className="text-xs text-white/50 group-hover:text-white/75 transition-colors truncate flex-1">{v.title}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <p className="px-3 py-2 text-[10px] text-white/20">Adicione vídeos para organizar em pastas</p>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -564,110 +671,6 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                   ))}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* FOLDERS */}
-          {section === "folders" && (
-            <div>
-              <SectionTitle>Subpastas da Galeria</SectionTitle>
-              <p className="text-white/25 text-[11px] font-light mb-4 leading-relaxed">
-                Organize os vídeos em capítulos — ex: &ldquo;Cerimônia&rdquo;, &ldquo;Festa&rdquo;, &ldquo;Making Of&rdquo;.
-              </p>
-
-              {/* Create folder */}
-              <div className="flex gap-2 mb-5">
-                <input
-                  value={newFolderName}
-                  onChange={e => setNewFolderName(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && createFolder()}
-                  placeholder="Nome da pasta…"
-                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/25 focus:outline-none focus:border-[#C9A84C]/40"
-                />
-                <button
-                  onClick={createFolder}
-                  disabled={creatingFolder || !newFolderName.trim()}
-                  className="px-3 py-2 rounded-lg bg-[#C9A84C]/10 hover:bg-[#C9A84C]/20 border border-[#C9A84C]/20 text-[#C9A84C] hover:text-[#C9A84C] transition-all text-xs disabled:opacity-40"
-                  title="Criar pasta"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                </button>
-              </div>
-
-              {folders.length === 0 && (
-                <div className="text-center py-8 text-white/20 text-xs">
-                  <svg className="w-10 h-10 mx-auto mb-3 opacity-20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-                  <p>Nenhuma pasta criada ainda</p>
-                </div>
-              )}
-
-              {folders.map(folder => (
-                <div key={folder.id} className="mb-3 rounded-lg border border-white/8 overflow-hidden">
-                  {/* Folder header */}
-                  <div className="flex items-center justify-between px-3 py-2.5 bg-white/5">
-                    {renamingFolderId === folder.id ? (
-                      <input
-                        value={renamingName}
-                        onChange={e => setRenamingName(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter") renameFolder(folder.id); if (e.key === "Escape") setRenamingFolderId(null) }}
-                        onBlur={() => renameFolder(folder.id)}
-                        autoFocus
-                        className="flex-1 bg-transparent text-xs text-white border-b border-white/30 focus:outline-none mr-2"
-                      />
-                    ) : (
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <svg className="w-3.5 h-3.5 text-[#C9A84C]/60 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-                        <span className="text-xs text-white/80 truncate">{folder.name}</span>
-                        <span className="text-[10px] text-white/25 flex-shrink-0 ml-1">
-                          {folder.videos.length} vídeo{folder.videos.length !== 1 ? "s" : ""}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-1 ml-2 flex-shrink-0">
-                      <button
-                        onClick={() => { setRenamingFolderId(folder.id); setRenamingName(folder.name) }}
-                        className="p-1 text-white/25 hover:text-white/60 transition-colors"
-                        title="Renomear"
-                      >
-                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </button>
-                      <button
-                        onClick={() => deleteFolder(folder.id)}
-                        className="p-1 text-white/25 hover:text-red-400 transition-colors"
-                        title="Remover pasta"
-                      >
-                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 6h18M19 6l-1 14H6L5 6M10 6V4h4v2"/></svg>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Assign videos to folder */}
-                  {videos.length > 0 ? (
-                    <div className="px-3 py-2.5 flex flex-col gap-1.5">
-                      {videos.map(v => {
-                        const inFolder = folder.videos.some(fv => fv.id === v.id)
-                        return (
-                          <label key={v.id} className="flex items-center gap-2.5 cursor-pointer group">
-                            <input
-                              type="checkbox"
-                              checked={inFolder}
-                              onChange={() => assignVideoToFolder(v.id, inFolder ? null : folder.id)}
-                              className="w-3.5 h-3.5 rounded accent-[#C9A84C] cursor-pointer"
-                            />
-                            {v.thumbnailUrl
-                              ? <img src={v.thumbnailUrl} className="w-9 h-5 object-cover rounded flex-shrink-0" alt="" />
-                              : <div className="w-9 h-5 bg-white/8 rounded flex-shrink-0" />
-                            }
-                            <span className="text-xs text-white/50 group-hover:text-white/75 transition-colors truncate flex-1">{v.title}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <p className="px-3 py-2 text-[10px] text-white/20">Adicione vídeos para organizar em pastas</p>
-                  )}
-                </div>
-              ))}
             </div>
           )}
 
