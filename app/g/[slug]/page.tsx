@@ -19,6 +19,13 @@ export default async function GalleryPage({ params, searchParams }: Props) {
       studio: true,
       videos: { orderBy: { order: "asc" } },
       photos: { orderBy: { order: "asc" } },
+      folders: {
+        orderBy: { order: "asc" },
+        include: {
+          videos: { orderBy: { order: "asc" } },
+          photos: { orderBy: { order: "asc" } },
+        },
+      },
     },
   })
 
