@@ -1,3 +1,4 @@
-import { handlers } from "@/lib/auth"
+import { handler } from "@/lib/auth"
 
-export const { GET, POST } = handlers
+// NextAuth v4 — um único handler para GET e POST
+export { handler as GET, handler as POST }

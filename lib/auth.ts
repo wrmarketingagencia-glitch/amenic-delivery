@@ -56,10 +56,9 @@ export const authOptions: NextAuthOptions = {
   },
 }
 
-// Handler para a rota /api/auth/[...nextauth]
-export const { handlers, signIn, signOut } = NextAuth(authOptions)
+// NextAuth v4 — retorna handler diretamente (não { handlers })
+export const handler = NextAuth(authOptions)
 
-// Wrapper com a mesma assinatura usada em todo o projeto
 export async function auth() {
   return getServerSession(authOptions)
 }
