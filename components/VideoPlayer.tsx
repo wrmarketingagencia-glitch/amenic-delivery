@@ -28,7 +28,7 @@ export function VideoPlayer({
   const [volume, setVolume] = useState(1)
   const [fullscreen, setFullscreen] = useState(false)
   const [showControls, setShowControls] = useState(true)
-  const controlsTimeout = useRef<ReturnType<typeof setTimeout>>()
+  const controlsTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
   const videoSrc = hlsUrl || mp4Url
 
