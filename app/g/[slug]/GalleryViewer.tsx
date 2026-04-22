@@ -464,7 +464,7 @@ function LayoutEditorial({ gallery, primaryColor, fontFamily }: { gallery: Galle
 
       {/* Footer with couple name */}
       <footer className="px-6 sm:px-10 py-10 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <h1 className="text-2xl font-light text-white/30" style={{ fontFamily }}>{gallery.title}</h1>
+        <p className="text-2xl font-light text-white/30 tracking-wide" style={{ fontFamily: UI_FONT }}>{gallery.title}</p>
         <AmenicLogo size="sm" />
       </footer>
     </div>
@@ -508,9 +508,9 @@ function LayoutCinema({ gallery, primaryColor, fontFamily }: { gallery: GalleryW
         {/* Logo + title */}
         <div className="flex-shrink-0 px-6 py-6 border-b border-white/6">
           <AmenicLogo size="sm" />
-          <h1 className="text-base font-light text-white/90 mt-5 leading-snug" style={{ fontFamily }}>
+          <p className="text-sm font-light text-white/80 mt-5 leading-snug tracking-wide" style={{ fontFamily: UI_FONT }}>
             {gallery.title}
-          </h1>
+          </p>
           {gallery.subtitle && (
             <p className="text-[11px] text-white/35 mt-1 leading-relaxed">{gallery.subtitle}</p>
           )}
