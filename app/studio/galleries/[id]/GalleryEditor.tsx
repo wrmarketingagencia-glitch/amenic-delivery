@@ -215,7 +215,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     })
   }, [gallery.id])
 
-  /* ── Upload video ───────────────────────────────────────────── */
+  /* ── Upload video (direto ao Bunny Stream — evita limite 413 do proxy) ── */
   const handleVideoUpload = async (file: File) => {
     const name = file.name.replace(/\.[^.]+$/, "")
     setUploadingVideo(name)
@@ -223,52 +223,55 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     setUploadProgress(0)
     setUploadError("")
 
-    const form = new FormData()
-    form.append("file", file)
-    form.append("folder", gallery.id)
+    // Fase 1: servidor cria entrada no Bunny Stream e devolve credenciais
+    let uploadUrl = "", apiKey = "", hlsUrl = "", mp4Url = "", thumbnailUrl = ""
+    try {
+      const tokenRes = await fetch(`/api/galleries/${gallery.id}/videos/upload-token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: name }),
+      })
+      if (!tokenRes.ok) {
+        const err = await tokenRes.json().catch(() => ({}))
+        setUploadError(err.error || `Erro ao iniciar upload (${tokenRes.status})`)
+        setUploading(false)
+        setUploadingVideo("")
+        return
+      }
+      ;({ uploadUrl, apiKey, hlsUrl, mp4Url, thumbnailUrl } = await tokenRes.json())
+    } catch {
+      setUploadError("Erro de conexão ao iniciar upload")
+      setUploading(false)
+      setUploadingVideo("")
+      return
+    }
 
+    // Fase 2: cliente envia o arquivo diretamente ao Bunny Stream (sem passar pelo servidor)
     const xhr = new XMLHttpRequest()
-    xhr.open("POST", "/api/upload")
-    xhr.withCredentials = true
+    xhr.open("PUT", uploadUrl)
+    xhr.setRequestHeader("AccessKey", apiKey)
+    xhr.setRequestHeader("Content-Type", "application/octet-stream")
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100))
     }
     xhr.onload = async () => {
       if (xhr.status === 200) {
-        try {
-          const data = JSON.parse(xhr.responseText)
-          if (!data.url) {
-            setUploadError(data.error || "Upload não retornou URL")
-          } else {
-            const res = await fetch(`/api/galleries/${gallery.id}/videos`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                title: name,
-                mp4Url: data.url,
-                hlsUrl: data.hlsUrl || null,
-                thumbnailUrl: data.thumbnailUrl || null,
-              }),
-            })
-            if (res.ok) {
-              const video = await res.json()
-              setVideos(v => [...v, video])
-              refreshPreview()
-            } else {
-              const err = await res.json().catch(() => ({}))
-              setUploadError(err.error || `Erro ao salvar vídeo (${res.status})`)
-            }
-          }
-        } catch {
-          setUploadError("Erro ao processar resposta do upload")
+        // Fase 3: salva metadados no banco via API
+        const res = await fetch(`/api/galleries/${gallery.id}/videos`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: name, mp4Url, hlsUrl, thumbnailUrl }),
+        })
+        if (res.ok) {
+          const video = await res.json()
+          setVideos(v => [...v, video])
+          refreshPreview()
+        } else {
+          const err = await res.json().catch(() => ({}))
+          setUploadError(err.error || `Erro ao salvar vídeo (${res.status})`)
         }
       } else {
-        try {
-          const err = JSON.parse(xhr.responseText)
-          setUploadError(err.error || `Upload falhou (${xhr.status})`)
-        } catch {
-          setUploadError(`Upload falhou (${xhr.status})`)
-        }
+        setUploadError(`Upload para Bunny falhou (${xhr.status}) — tente novamente`)
       }
       setUploading(false)
       setUploadProgress(0)
@@ -279,7 +282,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
       setUploading(false)
       setUploadingVideo("")
     }
-    xhr.send(form)
+    xhr.send(file)
   }
 
   /* ── Link video ─────────────────────────────────────────────── */
