@@ -308,38 +308,67 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     if (res.ok) setVideos(v => v.filter(x => x.id !== videoId))
   }
 
+  /* ── Helpers: upload direto ao Bunny Storage (sem proxy) ───── */
+  const uploadToBunnyStorage = async (
+    tokenEndpoint: string,
+    file: File,
+    onProgress?: (pct: number) => void
+  ): Promise<string | null> => {
+    // Fase 1: pede credenciais ao servidor
+    const tokenRes = await fetch(tokenEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: file.name }),
+    })
+    if (!tokenRes.ok) return null
+    const { uploadUrl, apiKey, cdnUrl } = await tokenRes.json()
+
+    // Fase 2: PUT direto ao Bunny Storage via XHR (com progresso)
+    return new Promise<string | null>((resolve) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open("PUT", uploadUrl)
+      xhr.setRequestHeader("AccessKey", apiKey)
+      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream")
+      if (onProgress) {
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
+        }
+      }
+      xhr.onload  = () => resolve(xhr.status === 201 || xhr.status === 200 ? cdnUrl : null)
+      xhr.onerror = () => resolve(null)
+      xhr.send(file)
+    })
+  }
+
   /* ── Upload cover ───────────────────────────────────────────── */
   const handleCoverUpload = async (file: File) => {
     setUploadingCover(true)
-    const form = new FormData()
-    form.append("file", file)
-    form.append("folder", gallery.id)
-    const res = await fetch("/api/upload", { method: "POST", body: form })
-    if (res.ok) {
-      const data = await res.json()
-      setCoverUrl(data.url)
-      await patch({ coverImageUrl: data.url })
+    const url = await uploadToBunnyStorage(
+      `/api/galleries/${gallery.id}/cover-upload-token`,
+      file
+    )
+    if (url) {
+      setCoverUrl(url)
+      await patch({ coverImageUrl: url })
     }
     setUploadingCover(false)
   }
 
   /* ── Upload photo ───────────────────────────────────────────── */
   const handlePhotoUpload = async (file: File) => {
-    const form = new FormData()
-    form.append("file", file)
-    form.append("folder", gallery.id)
-    const res = await fetch("/api/upload", { method: "POST", body: form })
-    if (res.ok) {
-      const data = await res.json()
-      const photoRes = await fetch(`/api/galleries/${gallery.id}/photos`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: data.url }),
-      })
-      if (photoRes.ok) {
-        const photo = await photoRes.json()
-        setPhotos(p => [...p, photo])
-      }
+    const url = await uploadToBunnyStorage(
+      `/api/galleries/${gallery.id}/photos/upload-token`,
+      file
+    )
+    if (!url) return
+    const photoRes = await fetch(`/api/galleries/${gallery.id}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    })
+    if (photoRes.ok) {
+      const photo = await photoRes.json()
+      setPhotos(p => [...p, photo])
     }
   }
 
