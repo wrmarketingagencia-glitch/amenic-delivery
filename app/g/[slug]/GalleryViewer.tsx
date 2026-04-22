@@ -123,6 +123,20 @@ function LayoutGatsby({ gallery, primaryColor, fontFamily }: { gallery: GalleryW
     musicPlaying ? (audio.pause(), setMusicPlaying(false)) : (audio.play(), setMusicPlaying(true))
   }, [musicPlaying])
 
+  // Pausa música quando vídeo toca; retoma quando vídeo pausa
+  const handleVideoPlay = useCallback(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.pause()
+    setMusicPlaying(false)
+  }, [])
+
+  const handleVideoPause = useCallback(() => {
+    const audio = audioRef.current
+    if (!audio || !gallery.musicUrl) return
+    audio.play().then(() => setMusicPlaying(true)).catch(() => {})
+  }, [gallery.musicUrl])
+
   const handleCopyLink = useCallback(() => {
     navigator.clipboard?.writeText(window.location.href)
     setCopied(true)
@@ -198,7 +212,8 @@ function LayoutGatsby({ gallery, primaryColor, fontFamily }: { gallery: GalleryW
         {activeVideo && (
           <div className="absolute inset-0 bg-black">
             <VideoPlayer hlsUrl={activeVideo.hlsUrl} mp4Url={activeVideo.mp4Url} thumbnailUrl={activeVideo.thumbnailUrl}
-              title={activeVideo.title} primaryColor={primaryColor} downloadEnabled={activeVideo.downloadEnabled} fillContainer />
+              title={activeVideo.title} primaryColor={primaryColor} downloadEnabled={activeVideo.downloadEnabled} fillContainer
+              onVideoPlay={handleVideoPlay} onVideoPause={handleVideoPause} />
           </div>
         )}
 
@@ -316,6 +331,12 @@ function LayoutEditorial({ gallery, primaryColor, fontFamily }: { gallery: Galle
     musicPlaying ? (audioRef.current.pause(), setMusicPlaying(false)) : (audioRef.current.play(), setMusicPlaying(true))
   }
 
+  const handleVideoPlay = () => { audioRef.current?.pause(); setMusicPlaying(false) }
+  const handleVideoPause = () => {
+    if (!audioRef.current || !gallery.musicUrl) return
+    audioRef.current.play().then(() => setMusicPlaying(true)).catch(() => {})
+  }
+
   const handleCopyLink = () => { navigator.clipboard?.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 2000) }
 
   const selectVideo = (video: Video) => {
@@ -365,7 +386,8 @@ function LayoutEditorial({ gallery, primaryColor, fontFamily }: { gallery: Galle
             {activeVideo ? (
               <div className="relative w-full" style={{ aspectRatio: "16/9", maxHeight: "75vh" }}>
                 <VideoPlayer hlsUrl={activeVideo.hlsUrl} mp4Url={activeVideo.mp4Url} thumbnailUrl={activeVideo.thumbnailUrl}
-                  title={activeVideo.title} primaryColor={primaryColor} downloadEnabled={activeVideo.downloadEnabled} fillContainer />
+                  title={activeVideo.title} primaryColor={primaryColor} downloadEnabled={activeVideo.downloadEnabled} fillContainer
+                  onVideoPlay={handleVideoPlay} onVideoPause={handleVideoPause} />
               </div>
             ) : gallery.coverImageUrl ? (
               <div className="relative w-full" style={{ aspectRatio: "16/9" }}>
@@ -497,6 +519,12 @@ function LayoutCinema({ gallery, primaryColor, fontFamily }: { gallery: GalleryW
     musicPlaying ? (audioRef.current.pause(), setMusicPlaying(false)) : (audioRef.current.play(), setMusicPlaying(true))
   }
 
+  const handleVideoPlay = () => { audioRef.current?.pause(); setMusicPlaying(false) }
+  const handleVideoPause = () => {
+    if (!audioRef.current || !gallery.musicUrl) return
+    audioRef.current.play().then(() => setMusicPlaying(true)).catch(() => {})
+  }
+
   const handleCopyLink = () => { navigator.clipboard?.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 2000) }
 
   return (
@@ -610,7 +638,8 @@ function LayoutCinema({ gallery, primaryColor, fontFamily }: { gallery: GalleryW
 
         {view === "videos" && activeVideo ? (
           <VideoPlayer hlsUrl={activeVideo.hlsUrl} mp4Url={activeVideo.mp4Url} thumbnailUrl={activeVideo.thumbnailUrl}
-            title={activeVideo.title} primaryColor={primaryColor} downloadEnabled={activeVideo.downloadEnabled} fillContainer />
+            title={activeVideo.title} primaryColor={primaryColor} downloadEnabled={activeVideo.downloadEnabled} fillContainer
+            onVideoPlay={handleVideoPlay} onVideoPause={handleVideoPause} />
         ) : view === "videos" && gallery.coverImageUrl ? (
           <div className="w-full h-full relative">
             <Image src={gallery.coverImageUrl} alt="" fill className="object-cover" />

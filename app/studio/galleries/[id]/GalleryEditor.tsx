@@ -113,6 +113,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
   const [uploadError, setUploadError] = useState("")
   const videoFileRef = useRef<HTMLInputElement>(null)
   const photoFileRef = useRef<HTMLInputElement>(null)
+  const musicFileRef = useRef<HTMLInputElement>(null)
 
   // Link Videos state
   const [linkTitle, setLinkTitle] = useState("")
@@ -133,6 +134,9 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
   // Music state
   const [musicUrl, setMusicUrl] = useState(gallery.musicUrl || "")
   const [musicSaved, setMusicSaved] = useState(false)
+  const [uploadingMusic, setUploadingMusic] = useState(false)
+  const [musicUploadProgress, setMusicUploadProgress] = useState(0)
+  const [musicUploadError, setMusicUploadError] = useState("")
 
   // Styles state
   const [fontFamily, setFontFamily] = useState(gallery.fontFamily || "Playfair Display")
@@ -779,15 +783,112 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
           {section === "music" && (
             <div>
               <SectionTitle>Música de Fundo</SectionTitle>
-              <p className="text-white/30 text-xs font-light mb-4 leading-relaxed">
-                Toca suavemente enquanto o cliente navega pela galeria. Cole a URL de um arquivo de áudio (MP3, AAC).
+              <p className="text-white/30 text-xs font-light mb-5 leading-relaxed">
+                Toca suavemente enquanto o cliente navega pela galeria. Pausa automaticamente quando um vídeo é reproduzido.
               </p>
+
+              {/* Upload do computador */}
+              <input ref={musicFileRef} type="file" accept="audio/*" className="hidden"
+                onChange={async e => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  setUploadingMusic(true)
+                  setMusicUploadProgress(0)
+                  setMusicUploadError("")
+
+                  const tokenRes = await fetch(`/api/galleries/${gallery.id}/music-upload-token`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ filename: file.name }),
+                  })
+                  if (!tokenRes.ok) {
+                    setMusicUploadError("Erro ao iniciar upload de música")
+                    setUploadingMusic(false)
+                    return
+                  }
+                  const { uploadUrl, apiKey, cdnUrl } = await tokenRes.json()
+
+                  const xhr = new XMLHttpRequest()
+                  xhr.open("PUT", uploadUrl)
+                  xhr.setRequestHeader("AccessKey", apiKey)
+                  xhr.setRequestHeader("Content-Type", file.type || "audio/mpeg")
+                  xhr.upload.onprogress = (ev) => {
+                    if (ev.lengthComputable) setMusicUploadProgress(Math.round((ev.loaded / ev.total) * 100))
+                  }
+                  xhr.onload = async () => {
+                    if (xhr.status === 200 || xhr.status === 201) {
+                      setMusicUrl(cdnUrl)
+                      await patch({ musicUrl: cdnUrl })
+                      setMusicSaved(true)
+                      setTimeout(() => setMusicSaved(false), 2000)
+                    } else {
+                      setMusicUploadError(`Upload falhou (${xhr.status})`)
+                    }
+                    setUploadingMusic(false)
+                    setMusicUploadProgress(0)
+                  }
+                  xhr.onerror = () => {
+                    setMusicUploadError("Erro de conexão durante o upload")
+                    setUploadingMusic(false)
+                  }
+                  xhr.send(file)
+                  e.target.value = ""
+                }}
+              />
+
+              {uploadingMusic ? (
+                <div className="p-4 bg-white/5 rounded-lg border border-white/10 mb-4">
+                  <div className="flex justify-between text-xs text-white/40 mb-2">
+                    <span>Enviando música…</span>
+                    <span>{musicUploadProgress}%</span>
+                  </div>
+                  <div className="h-px bg-white/10 overflow-hidden rounded">
+                    <div className="h-full bg-[#C9A84C] transition-all" style={{ width: `${musicUploadProgress}%` }} />
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => musicFileRef.current?.click()}
+                  className="w-full py-6 border border-dashed border-white/15 rounded-lg text-white/35 hover:text-white/55 hover:border-white/25 transition-all text-xs tracking-wider flex flex-col items-center gap-2 mb-5">
+                  <svg className="w-6 h-6 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                  </svg>
+                  <span>Upload de música do computador</span>
+                  <span className="text-white/20 text-[10px]">MP3, AAC, WAV, FLAC</span>
+                </button>
+              )}
+
+              {musicUploadError && (
+                <div className="mb-4 p-3 rounded-lg bg-red-900/20 border border-red-500/30">
+                  <p className="text-xs text-red-400">{musicUploadError}</p>
+                  <button onClick={() => setMusicUploadError("")} className="text-[10px] text-red-400/60 mt-1 hover:text-red-400">Fechar</button>
+                </div>
+              )}
+
+              {/* Divisor */}
+              <div className="flex items-center gap-3 mb-5">
+                <div className="flex-1 h-px bg-white/8" />
+                <span className="text-[10px] text-white/20 tracking-widest uppercase">ou cole uma URL</span>
+                <div className="flex-1 h-px bg-white/8" />
+              </div>
+
               <div className="flex flex-col gap-3">
                 <input value={musicUrl} onChange={e => setMusicUrl(e.target.value)} placeholder="URL do áudio (MP3, AAC…)"
                   className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/12 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#C9A84C]/50 font-light" />
+
                 {musicUrl && (
-                  <audio controls src={musicUrl} className="w-full h-8 opacity-70" />
+                  <>
+                    <audio controls src={musicUrl} className="w-full h-8 opacity-70" />
+                    <div className="flex items-center gap-2 p-2.5 rounded-lg bg-[#C9A84C]/5 border border-[#C9A84C]/15">
+                      <svg className="w-3.5 h-3.5 text-[#C9A84C]/60 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                        <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+                      </svg>
+                      <p className="text-[10px] text-white/35 leading-relaxed">
+                        A música pausa automaticamente quando um vídeo começa a reproduzir.
+                      </p>
+                    </div>
+                  </>
                 )}
+
                 <button onClick={async () => {
                   await patch({ musicUrl: musicUrl || null })
                   setMusicSaved(true); setTimeout(() => setMusicSaved(false), 2000)
@@ -795,6 +896,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                   className="py-2.5 bg-[#C9A84C] text-black text-xs tracking-widest uppercase rounded font-medium hover:bg-[#d4b55a] transition-colors">
                   {musicSaved ? "✓ Salvo" : "Salvar Música"}
                 </button>
+
                 {musicUrl && (
                   <button onClick={() => { setMusicUrl(""); patch({ musicUrl: null }) }}
                     className="py-2 text-xs text-white/30 hover:text-red-400 transition-colors">

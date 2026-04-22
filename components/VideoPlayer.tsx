@@ -12,6 +12,10 @@ interface VideoPlayerProps {
   downloadEnabled?: boolean
   /** When true, fills the parent container height instead of using aspect-video */
   fillContainer?: boolean
+  /** Called when video starts playing (use to pause background music) */
+  onVideoPlay?: () => void
+  /** Called when video pauses or ends (use to resume background music) */
+  onVideoPause?: () => void
 }
 
 export function VideoPlayer({
@@ -22,6 +26,8 @@ export function VideoPlayer({
   primaryColor = "#C9A84C",
   downloadEnabled = true,
   fillContainer = false,
+  onVideoPlay,
+  onVideoPause,
 }: VideoPlayerProps) {
   const videoRef    = useRef<HTMLVideoElement>(null)
   const hlsRef      = useRef<Hls | null>(null)
@@ -145,9 +151,9 @@ export function VideoPlayer({
           setProgress(v.currentTime)
           setDuration(v.duration || 0)
         }}
-        onEnded={() => setPlaying(false)}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); onVideoPause?.() }}
+        onPlay={() => { setPlaying(true); onVideoPlay?.() }}
+        onPause={() => { setPlaying(false); onVideoPause?.() }}
         playsInline
       />
 
