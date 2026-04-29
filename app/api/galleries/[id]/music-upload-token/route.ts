@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 
-const STORAGE_ZONE = process.env.BUNNY_STORAGE_ZONE
-const STORAGE_KEY  = process.env.BUNNY_STORAGE_API_KEY
-const CDN_URL      = process.env.BUNNY_CDN_URL
+const STORAGE_ZONE    = process.env.BUNNY_STORAGE_ZONE
+const STORAGE_KEY     = process.env.BUNNY_STORAGE_API_KEY
+const CDN_URL         = process.env.BUNNY_CDN_URL
+const STORAGE_REGION  = process.env.BUNNY_STORAGE_REGION || "br"
 
 interface Ctx { params: Promise<{ id: string }> }
 
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const remotePath = `${id}/${safeName}`
 
   return NextResponse.json({
-    uploadUrl: `https://storage.bunnycdn.com/${STORAGE_ZONE}/${remotePath}`,
+    uploadUrl: `https://${STORAGE_REGION}.storage.bunnycdn.com/${STORAGE_ZONE}/${remotePath}`,
     apiKey:    STORAGE_KEY,
     cdnUrl:    `${CDN_URL}/${remotePath}`,
   })

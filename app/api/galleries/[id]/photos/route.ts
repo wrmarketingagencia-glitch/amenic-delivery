@@ -31,6 +31,29 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   return NextResponse.json(photo, { status: 201 })
 }
 
+/**
+ * PATCH /api/galleries/[id]/photos
+ * Body: { photoId, thumbnailUrl }
+ * Atualiza a URL da thumbnail de uma foto específica.
+ */
+export async function PATCH(req: NextRequest, { params }: Ctx) {
+  const session = await auth()
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  const { id } = await params
+  const gallery = await db.gallery.findFirst({ where: { id, studioId: session.user.id } })
+  if (!gallery) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  const { photoId, thumbnailUrl } = await req.json()
+  if (!photoId) return NextResponse.json({ error: "photoId obrigatório" }, { status: 400 })
+
+  const photo = await db.photo.update({
+    where: { id: photoId, galleryId: id },
+    data: { thumbnailUrl: thumbnailUrl || null },
+  })
+  return NextResponse.json(photo)
+}
+
 export async function DELETE(req: NextRequest, { params }: Ctx) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

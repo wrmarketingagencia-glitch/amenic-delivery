@@ -155,6 +155,13 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null)
   const [renamingName, setRenamingName] = useState("")
 
+  // Per-folder upload state
+  const [folderUploadingId, setFolderUploadingId]       = useState<string | null>(null)
+  const [folderUploadProgress, setFolderUploadProgress] = useState(0)
+  const [folderUploadError, setFolderUploadError]       = useState("")
+  const folderVideoInputRef = useRef<HTMLInputElement>(null)
+  const folderUploadTargetId = useRef<string | null>(null)
+
   // Preview refresh key — increments to reload iframe when content changes
   const [previewKey, setPreviewKey] = useState(0)
   const refreshPreview = useCallback(() => setPreviewKey(k => k + 1), [])
@@ -305,11 +312,192 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     }
   }
 
+  /* ── Video inline editing state ────────────────────────────── */
+  const [editingVideoId,   setEditingVideoId]   = useState<string | null>(null)
+  const [editingVideoName, setEditingVideoName] = useState("")
+  const [thumbOpenId,      setThumbOpenId]      = useState<string | null>(null)
+  const [thumbTime,        setThumbTime]        = useState("00:00:00")
+  const [thumbLoading,     setThumbLoading]     = useState(false)
+  const thumbFileRef = useRef<HTMLInputElement>(null)
+  const [thumbUploadId, setThumbUploadId] = useState<string | null>(null)
+
+  const startRename = (v: Video) => { setEditingVideoId(v.id); setEditingVideoName(v.title) }
+
+  const saveRename = async (videoId: string) => {
+    const name = editingVideoName.trim()
+    if (!name) return
+    setVideos(vs => vs.map(v => v.id === videoId ? { ...v, title: name } : v))
+    setEditingVideoId(null)
+    await fetch(`/api/galleries/${gallery.id}/videos`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId, title: name }),
+    })
+  }
+
+  /** Returns true if videoId is the first main (non-folder) video = "principal" */
+  const isPrincipal = (videoId: string) => {
+    const main = videos.filter(v => !v.folderId)
+    return main.length > 0 && main[0].id === videoId
+  }
+
+  /** If the updated video is the principal one, also sync the gallery cover */
+  const syncCoverIfPrincipal = async (videoId: string, thumbUrl: string) => {
+    if (isPrincipal(videoId)) {
+      setCoverUrl(thumbUrl)
+      await patch({ coverImageUrl: thumbUrl })
+    }
+  }
+
+  const setThumbFromFrame = async (videoId: string) => {
+    const parts = thumbTime.split(":").map(Number)
+    const seconds = (parts[0] ?? 0) * 3600 + (parts[1] ?? 0) * 60 + (parts[2] ?? 0)
+    setThumbLoading(true)
+    const res = await fetch(`/api/galleries/${gallery.id}/videos`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId, thumbnailTime: seconds }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setVideos(vs => vs.map(v => v.id === videoId ? { ...v, thumbnailUrl: data.thumbnailUrl } : v))
+      await syncCoverIfPrincipal(videoId, data.thumbnailUrl)
+      setThumbOpenId(null)
+    }
+    setThumbLoading(false)
+  }
+
+  const uploadCustomThumb = async (videoId: string, file: File) => {
+    setThumbLoading(true)
+    // 1. Get upload token (reuse photo upload token endpoint structure)
+    const tokenRes = await fetch(`/api/galleries/${gallery.id}/photos/upload-token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: file.name }),
+    })
+    if (!tokenRes.ok) { setThumbLoading(false); return }
+    const { uploadUrl, apiKey, cdnUrl } = await tokenRes.json()
+
+    // 2. Upload to Bunny Storage
+    await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { AccessKey: apiKey, "Content-Type": file.type || "image/jpeg" },
+      body: file,
+    })
+
+    // 3. Save URL to DB
+    await fetch(`/api/galleries/${gallery.id}/videos`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId, thumbnailUrl: cdnUrl }),
+    })
+    setVideos(vs => vs.map(v => v.id === videoId ? { ...v, thumbnailUrl: cdnUrl } : v))
+    await syncCoverIfPrincipal(videoId, cdnUrl)
+    setThumbOpenId(null)
+    setThumbLoading(false)
+  }
+
   /* ── Delete video ───────────────────────────────────────────── */
   const deleteVideo = async (videoId: string) => {
     if (!confirm("Remover este vídeo?")) return
     const res = await fetch(`/api/galleries/${gallery.id}/videos?videoId=${videoId}`, { method: "DELETE" })
     if (res.ok) setVideos(v => v.filter(x => x.id !== videoId))
+  }
+
+  /* ── Reorder videos ─────────────────────────────────────────── */
+  const moveVideo = async (index: number, direction: "up" | "down") => {
+    const targetIndex = direction === "up" ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= videos.length) return
+
+    const newVideos = [...videos]
+    ;[newVideos[index], newVideos[targetIndex]] = [newVideos[targetIndex], newVideos[index]]
+    setVideos(newVideos)
+
+    await fetch(`/api/galleries/${gallery.id}/videos`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reorder: newVideos.map((v, i) => ({ id: v.id, order: i })),
+      }),
+    })
+    refreshPreview()
+  }
+
+  /* ── Upload vídeo para uma pasta específica ─────────────────── */
+  const handleFolderVideoUpload = async (file: File, folderId: string) => {
+    const name = file.name.replace(/\.[^.]+$/, "")
+    setFolderUploadingId(folderId)
+    setFolderUploadProgress(0)
+    setFolderUploadError("")
+
+    let uploadUrl = "", apiKey = "", hlsUrl = "", mp4Url = "", thumbnailUrl = ""
+    try {
+      const tokenRes = await fetch(`/api/galleries/${gallery.id}/videos/upload-token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: name }),
+      })
+      if (!tokenRes.ok) {
+        const err = await tokenRes.json().catch(() => ({}))
+        setFolderUploadError(err.error || `Erro ao iniciar upload (${tokenRes.status})`)
+        setFolderUploadingId(null)
+        return
+      }
+      ;({ uploadUrl, apiKey, hlsUrl, mp4Url, thumbnailUrl } = await tokenRes.json())
+    } catch {
+      setFolderUploadError("Erro de conexão ao iniciar upload")
+      setFolderUploadingId(null)
+      return
+    }
+
+    const xhr = new XMLHttpRequest()
+    xhr.open("PUT", uploadUrl)
+    xhr.setRequestHeader("AccessKey", apiKey)
+    xhr.setRequestHeader("Content-Type", "application/octet-stream")
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) setFolderUploadProgress(Math.round((e.loaded / e.total) * 100))
+    }
+    xhr.onload = async () => {
+      if (xhr.status === 200) {
+        const res = await fetch(`/api/galleries/${gallery.id}/videos`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: name, mp4Url, hlsUrl, thumbnailUrl, folderId }),
+        })
+        if (res.ok) {
+          const video = await res.json()
+          setVideos(v => [...v, video])
+          setFolders(fs => fs.map(f =>
+            f.id === folderId ? { ...f, videos: [...f.videos, video] } : f
+          ))
+          refreshPreview()
+        } else {
+          const err = await res.json().catch(() => ({}))
+          setFolderUploadError(err.error || `Erro ao salvar vídeo (${res.status})`)
+        }
+      } else {
+        setFolderUploadError(`Upload falhou (${xhr.status})`)
+      }
+      setFolderUploadingId(null)
+      setFolderUploadProgress(0)
+    }
+    xhr.onerror = () => {
+      setFolderUploadError("Erro de conexão durante o upload")
+      setFolderUploadingId(null)
+    }
+    xhr.send(file)
+  }
+
+  /* ── Delete folder video ─────────────────────────────────────── */
+  const deleteFolderVideo = async (videoId: string, folderId: string) => {
+    if (!confirm("Remover este vídeo da pasta?")) return
+    const res = await fetch(`/api/galleries/${gallery.id}/videos?videoId=${videoId}`, { method: "DELETE" })
+    if (res.ok) {
+      setVideos(v => v.filter(x => x.id !== videoId))
+      setFolders(fs => fs.map(f =>
+        f.id === folderId ? { ...f, videos: f.videos.filter(v => v.id !== videoId) } : f
+      ))
+    }
   }
 
   /* ── Helpers: upload direto ao Bunny Storage (sem proxy) ───── */
@@ -358,17 +546,48 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     setUploadingCover(false)
   }
 
-  /* ── Upload photo ───────────────────────────────────────────── */
+  /* ── Gera thumbnail comprimida client-side ───────────────────
+     maxPx = 480px, quality 28% → ~8-20 KB por foto (carregamento quase instantâneo)
+     O arquivo original é enviado sem compressão para download full-res e lightbox
+  ────────────────────────────────────────────────────────────── */
+  const makeThumbnail = (file: File, maxPx = 480, quality = 0.28): Promise<File> =>
+    new Promise((resolve) => {
+      const img = new window.Image()
+      const blobUrl = URL.createObjectURL(file)
+      img.onload = () => {
+        URL.revokeObjectURL(blobUrl)
+        const { naturalWidth: w, naturalHeight: h } = img
+        const scale = Math.min(1, maxPx / Math.max(w, h))
+        const canvas = document.createElement("canvas")
+        canvas.width  = Math.round(w * scale)
+        canvas.height = Math.round(h * scale)
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height)
+        canvas.toBlob(
+          blob => resolve(blob
+            ? new File([blob], `thumb_${file.name.replace(/\.\w+$/, ".jpg")}`, { type: "image/jpeg" })
+            : file),
+          "image/jpeg", quality
+        )
+      }
+      img.onerror = () => { URL.revokeObjectURL(blobUrl); resolve(file) }
+      img.src = blobUrl
+    })
+
+  /* ── Upload photo: original full-res + thumbnail comprimida ── */
   const handlePhotoUpload = async (file: File) => {
-    const url = await uploadToBunnyStorage(
-      `/api/galleries/${gallery.id}/photos/upload-token`,
-      file
-    )
+    const tokenEndpoint = `/api/galleries/${gallery.id}/photos/upload-token`
+
+    // Upload original (full-res) e thumbnail em paralelo
+    const [url, thumbnailUrl] = await Promise.all([
+      uploadToBunnyStorage(tokenEndpoint, file),
+      makeThumbnail(file).then(thumb => uploadToBunnyStorage(tokenEndpoint, thumb)),
+    ])
+
     if (!url) return
     const photoRes = await fetch(`/api/galleries/${gallery.id}/photos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url, thumbnailUrl: thumbnailUrl ?? null }),
     })
     if (photoRes.ok) {
       const photo = await photoRes.json()
@@ -382,6 +601,55 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     if (res.ok) setPhotos(p => p.filter(x => x.id !== photoId))
   }
 
+  /* ── Regenera thumbnails de todas as fotos com nova compressão ──
+     Útil para fotos já enviadas antes de reduzirmos o tamanho.
+     Baixa cada original, comprime a 480px/28% e re-sobe.
+  ────────────────────────────────────────────────────────────── */
+  const [regenProgress, setRegenProgress] = useState<{ done: number; total: number } | null>(null)
+
+  const regenerateThumbnails = async () => {
+    if (photos.length === 0) return
+    if (!confirm(`Regenerar miniaturas de ${photos.length} foto(s) com a nova compressão mais rápida?`)) return
+
+    setRegenProgress({ done: 0, total: photos.length })
+    const tokenEndpoint = `/api/galleries/${gallery.id}/photos/upload-token`
+
+    for (let i = 0; i < photos.length; i++) {
+      const photo = photos[i]
+      try {
+        // Fetch original file
+        const res = await fetch(photo.url)
+        if (!res.ok) continue
+        const blob = await res.blob()
+        const ext  = photo.url.split("?")[0].split(".").pop() || "jpg"
+        const file = new File([blob], `original_${i}.${ext}`, { type: blob.type || "image/jpeg" })
+
+        // Compress to 480px/28%
+        const thumb = await makeThumbnail(file, 480, 0.28)
+
+        // Upload compressed thumbnail
+        const newThumbUrl = await uploadToBunnyStorage(tokenEndpoint, thumb)
+        if (!newThumbUrl) continue
+
+        // Update DB record
+        await fetch(`/api/galleries/${gallery.id}/photos`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photoId: photo.id, thumbnailUrl: newThumbUrl }),
+        })
+
+        // Update local state
+        setPhotos(prev => prev.map(p => p.id === photo.id ? { ...p, thumbnailUrl: newThumbUrl } : p))
+      } catch {
+        // Skip failures, keep going
+      }
+      setRegenProgress({ done: i + 1, total: photos.length })
+    }
+
+    setRegenProgress(null)
+    alert("Miniaturas regeneradas com sucesso!")
+  }
+
   /* ── Publish ────────────────────────────────────────────────── */
   const togglePublish = async () => {
     if (!published) {
@@ -393,9 +661,8 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     }
   }
 
-  const galleryLink = typeof window !== "undefined"
-    ? `${window.location.origin}/g/${gallery.slug}`
-    : `/g/${gallery.slug}`
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "")
+  const galleryLink = `${appUrl}/g/${slug}`
 
   /* ── Render ─────────────────────────────────────────────────── */
   return (
@@ -414,7 +681,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
           <span className="text-white/55 text-xs truncate max-w-40">{gallery.title}</span>
         </div>
         <div className="flex items-center gap-2">
-          <a href={`/g/${gallery.slug}`} target="_blank"
+          <a href={`/g/${slug}`} target="_blank"
             className="text-xs text-white/35 hover:text-white/60 transition-colors px-3 py-1.5 rounded border border-white/10 hover:border-white/20">
             Visualizar
           </a>
@@ -481,12 +748,57 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
         {/* ── Section panel ────────────────────────────────── */}
         <div className="w-72 flex-shrink-0 border-r border-white/8 bg-[#111] overflow-y-auto p-5">
 
+          {/* ── Global hidden file inputs (always mounted) ─── */}
+          <input ref={videoFileRef} type="file" accept="video/*" multiple className="hidden"
+            onChange={e => { if (e.target.files) Array.from(e.target.files).forEach(handleVideoUpload) }} />
+          <input ref={photoFileRef} type="file" accept="image/*" multiple className="hidden"
+            onChange={e => { if (e.target.files) Array.from(e.target.files).forEach(handlePhotoUpload) }} />
+          <input ref={musicFileRef} type="file" accept="audio/*" className="hidden"
+            onChange={async e => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              setUploadingMusic(true); setMusicUploadProgress(0); setMusicUploadError("")
+              const tokenRes = await fetch(`/api/galleries/${gallery.id}/music-upload-token`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ filename: file.name }),
+              })
+              if (!tokenRes.ok) { setMusicUploadError("Erro ao iniciar upload de música"); setUploadingMusic(false); return }
+              const { uploadUrl, apiKey, cdnUrl } = await tokenRes.json()
+              const xhr = new XMLHttpRequest()
+              xhr.open("PUT", uploadUrl)
+              xhr.setRequestHeader("AccessKey", apiKey)
+              xhr.setRequestHeader("Content-Type", file.type || "audio/mpeg")
+              xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) setMusicUploadProgress(Math.round((ev.loaded / ev.total) * 100)) }
+              xhr.onload = async () => {
+                if (xhr.status === 200 || xhr.status === 201) {
+                  setMusicUrl(cdnUrl); await patch({ musicUrl: cdnUrl })
+                  setMusicSaved(true); setTimeout(() => setMusicSaved(false), 2000)
+                } else { setMusicUploadError(`Upload falhou (${xhr.status})`) }
+                setUploadingMusic(false); setMusicUploadProgress(0)
+              }
+              xhr.onerror = () => { setMusicUploadError("Erro de conexão durante o upload"); setUploadingMusic(false) }
+              xhr.send(file); e.target.value = ""
+            }} />
+          <input ref={coverFileRef} type="file" accept="image/*" className="hidden"
+            onChange={e => e.target.files?.[0] && handleCoverUpload(e.target.files[0])} />
+          <input ref={thumbFileRef} type="file" accept="image/*" className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0]
+              if (file && thumbUploadId) uploadCustomThumb(thumbUploadId, file)
+              e.target.value = ""
+            }} />
+          <input ref={folderVideoInputRef} type="file" accept="video/*" multiple className="hidden"
+            onChange={e => {
+              const fid = folderUploadTargetId.current
+              if (!fid || !e.target.files) return
+              Array.from(e.target.files).forEach(f => handleFolderVideoUpload(f, fid))
+              e.target.value = ""
+            }} />
+
           {/* UPLOAD */}
           {section === "upload" && (
             <div>
               <SectionTitle>Upload de Vídeo</SectionTitle>
-              <input ref={videoFileRef} type="file" accept="video/*" multiple className="hidden"
-                onChange={e => { if (e.target.files) Array.from(e.target.files).forEach(handleVideoUpload) }} />
 
               {uploading ? (
                 <div className="p-4 bg-white/5 rounded-lg border border-white/10 mb-4">
@@ -518,8 +830,6 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
               )}
 
               <SectionTitle>Upload de Fotos</SectionTitle>
-              <input ref={photoFileRef} type="file" accept="image/*" multiple className="hidden"
-                onChange={e => { if (e.target.files) Array.from(e.target.files).forEach(handlePhotoUpload) }} />
               <button onClick={() => photoFileRef.current?.click()}
                 className="w-full py-6 border border-dashed border-white/15 rounded-lg text-white/30 hover:text-white/50 hover:border-white/25 transition-all text-xs tracking-wider flex flex-col items-center gap-2 mb-5">
                 <svg className="w-6 h-6 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
@@ -528,24 +838,136 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                 <span>Upload de fotos (múltiplas)</span>
               </button>
 
-              {/* Video list */}
-              {videos.length > 0 && (
+              {/* Main video list (excludes folder videos) */}
+              {videos.filter(v => !v.folderId).length > 0 && (
                 <>
-                  <SectionTitle>Vídeos ({videos.length})</SectionTitle>
+                  <SectionTitle>Vídeos principais ({videos.filter(v => !v.folderId).length})</SectionTitle>
+                  <p className="text-[10px] text-white/25 font-light mb-3 leading-relaxed">
+                    O primeiro vídeo é o vídeo raiz — toca por padrão ao abrir a galeria. Use ▲ ▼ para reordenar.
+                  </p>
                   <div className="flex flex-col gap-2">
-                    {videos.map((v, i) => (
-                      <div key={v.id} className="flex items-center gap-2 p-2.5 bg-white/4 rounded-lg border border-white/8 group">
-                        <span className="text-white/20 text-xs w-4 text-center flex-shrink-0">{i + 1}</span>
-                        {v.thumbnailUrl
-                          ? <img src={v.thumbnailUrl} className="w-12 h-7 object-cover rounded flex-shrink-0" alt="" />
-                          : <div className="w-12 h-7 bg-white/8 rounded flex-shrink-0 flex items-center justify-center"><svg className="w-3 h-3 text-white/20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21"/></svg></div>
-                        }
-                        <p className="text-xs text-white/60 flex-1 truncate font-light">{v.title}</p>
-                        <button onClick={() => deleteVideo(v.id)} className="text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M3 6h18M19 6l-1 14H6L5 6M10 6V4h4v2"/>
-                          </svg>
-                        </button>
+                    {videos.filter(v => !v.folderId).map((v, i, mainList) => (
+                      <div key={v.id} className="rounded-lg border border-white/8 bg-white/4 overflow-hidden">
+
+                        {/* Main row */}
+                        <div className="flex items-center gap-2 p-2.5 group">
+                          {/* Order controls */}
+                          <div className="flex flex-col gap-0.5 flex-shrink-0">
+                            <button
+                              onClick={() => moveVideo(videos.indexOf(v), "up")}
+                              disabled={i === 0}
+                              className="w-5 h-4 flex items-center justify-center text-white/25 hover:text-white/70 disabled:opacity-0 transition-colors"
+                              title="Mover para cima">
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 15l-6-6-6 6"/></svg>
+                            </button>
+                            <button
+                              onClick={() => moveVideo(videos.indexOf(v), "down")}
+                              disabled={i === mainList.length - 1}
+                              className="w-5 h-4 flex items-center justify-center text-white/25 hover:text-white/70 disabled:opacity-0 transition-colors"
+                              title="Mover para baixo">
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 9l6 6 6-6"/></svg>
+                            </button>
+                          </div>
+
+                          {/* Thumbnail — click to open picker */}
+                          <button
+                            onClick={() => setThumbOpenId(thumbOpenId === v.id ? null : v.id)}
+                            className="relative flex-shrink-0 rounded overflow-hidden group/thumb"
+                            title="Alterar thumbnail">
+                            {v.thumbnailUrl
+                              ? <img src={v.thumbnailUrl} className="w-12 h-7 object-cover" alt="" />
+                              : <div className="w-12 h-7 bg-white/8 flex items-center justify-center">
+                                  <svg className="w-3 h-3 text-white/20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21"/></svg>
+                                </div>
+                            }
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center">
+                              <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                              </svg>
+                            </div>
+                          </button>
+
+                          {/* Title — click to rename */}
+                          <div className="flex-1 min-w-0">
+                            {editingVideoId === v.id ? (
+                              <input
+                                value={editingVideoName}
+                                onChange={e => setEditingVideoName(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter") saveRename(v.id)
+                                  if (e.key === "Escape") setEditingVideoId(null)
+                                }}
+                                onBlur={() => saveRename(v.id)}
+                                autoFocus
+                                className="w-full bg-transparent border-b border-[#C9A84C]/50 text-xs text-white focus:outline-none pb-0.5"
+                              />
+                            ) : (
+                              <button
+                                onClick={() => startRename(v)}
+                                className="text-left w-full group/title"
+                                title="Clique para renomear">
+                                <p className="text-xs text-white/60 truncate font-light group-hover/title:text-white/85 transition-colors">{v.title}</p>
+                                {i === 0 && (
+                                  <p className="text-[9px] tracking-[0.15em] uppercase mt-0.5" style={{ color: "#C9A84C" }}>
+                                    ★ Principal
+                                  </p>
+                                )}
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Delete */}
+                          <button onClick={() => deleteVideo(v.id)} className="text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0" title="Remover">
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M3 6h18M19 6l-1 14H6L5 6M10 6V4h4v2"/>
+                            </svg>
+                          </button>
+                        </div>
+
+                        {/* Thumbnail picker panel */}
+                        {thumbOpenId === v.id && (
+                          <div className="border-t border-white/8 px-3 py-3 bg-black/20 flex flex-col gap-3">
+                            <p className="text-[9px] tracking-[0.18em] uppercase text-white/30 font-light">Thumbnail</p>
+
+                            {/* Frame from video */}
+                            {v.hlsUrl && (
+                              <div className="flex flex-col gap-1.5">
+                                <label className="text-[10px] text-white/40">Frame do vídeo (hh:mm:ss)</label>
+                                <div className="flex gap-2">
+                                  <input
+                                    value={thumbTime}
+                                    onChange={e => setThumbTime(e.target.value)}
+                                    placeholder="00:00:00"
+                                    className="flex-1 px-2 py-1.5 rounded bg-white/5 border border-white/12 text-xs text-white font-mono focus:outline-none focus:border-[#C9A84C]/40"
+                                  />
+                                  <button
+                                    onClick={() => setThumbFromFrame(v.id)}
+                                    disabled={thumbLoading}
+                                    className="px-2.5 py-1.5 rounded bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 border border-[#C9A84C]/25 text-[#C9A84C] text-[10px] transition-colors disabled:opacity-40 whitespace-nowrap">
+                                    {thumbLoading ? "…" : "Usar frame"}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Custom upload */}
+                            <button
+                              onClick={() => { setThumbUploadId(v.id); thumbFileRef.current?.click() }}
+                              disabled={thumbLoading}
+                              className="w-full py-2 border border-dashed border-white/15 hover:border-white/30 rounded text-[10px] text-white/35 hover:text-white/60 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40">
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                              </svg>
+                              Upload imagem
+                            </button>
+
+                            <button
+                              onClick={() => setThumbOpenId(null)}
+                              className="text-[10px] text-white/20 hover:text-white/40 transition-colors text-center">
+                              Fechar
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -555,11 +977,34 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
               {/* Photo grid */}
               {photos.length > 0 && (
                 <>
-                  <SectionTitle className="mt-4">Fotos ({photos.length})</SectionTitle>
+                  <div className="flex items-center justify-between mt-4 mb-3">
+                    <SectionTitle className="!mb-0">Fotos ({photos.length})</SectionTitle>
+                    {/* Regenerate thumbnails button */}
+                    <button
+                      onClick={regenerateThumbnails}
+                      disabled={!!regenProgress}
+                      title="Reprocessa todas as fotos com miniaturas menores e mais rápidas"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] tracking-wider uppercase border border-white/10 text-white/40 hover:text-white/70 hover:border-white/20 transition-all disabled:opacity-40 disabled:cursor-wait"
+                    >
+                      {regenProgress ? (
+                        <>
+                          <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                          {regenProgress.done}/{regenProgress.total}
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                          </svg>
+                          Regenerar miniaturas
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <div className="grid grid-cols-3 gap-1.5">
                     {photos.map(p => (
                       <div key={p.id} className="relative group aspect-square rounded overflow-hidden bg-white/5">
-                        <img src={p.url} className="w-full h-full object-cover" alt="" />
+                        <img src={p.thumbnailUrl ?? p.url} className="w-full h-full object-cover" alt="" />
                         <button onClick={() => deletePhoto(p.id)}
                           className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                           <svg className="w-4 h-4 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -576,7 +1021,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
               <div className="mt-6 pt-5 border-t border-white/8">
                 <SectionTitle>Subpastas</SectionTitle>
                 <p className="text-white/25 text-[11px] font-light mb-4 leading-relaxed">
-                  Organize os vídeos em capítulos — ex: &ldquo;Cerimônia&rdquo;, &ldquo;Festa&rdquo;, &ldquo;Making Of&rdquo;.
+                  Cada pasta é um capítulo independente — os vídeos da pasta ficam separados dos vídeos principais e são exibidos ao cliente quando ele clica na pasta.
                 </p>
 
                 {/* Create folder */}
@@ -598,6 +1043,13 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                   </button>
                 </div>
 
+                {folderUploadError && (
+                  <div className="mb-3 p-2.5 rounded-lg bg-red-900/20 border border-red-500/30">
+                    <p className="text-xs text-red-400">{folderUploadError}</p>
+                    <button onClick={() => setFolderUploadError("")} className="text-[10px] text-red-400/60 mt-1 hover:text-red-400">Fechar</button>
+                  </div>
+                )}
+
                 {folders.length === 0 && (
                   <div className="text-center py-6 text-white/20 text-xs">
                     <svg className="w-8 h-8 mx-auto mb-2 opacity-20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
@@ -605,73 +1057,184 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                   </div>
                 )}
 
-                {folders.map(folder => (
-                  <div key={folder.id} className="mb-3 rounded-lg border border-white/8 overflow-hidden">
-                    {/* Folder header */}
-                    <div className="flex items-center justify-between px-3 py-2.5 bg-white/5">
-                      {renamingFolderId === folder.id ? (
-                        <input
-                          value={renamingName}
-                          onChange={e => setRenamingName(e.target.value)}
-                          onKeyDown={e => { if (e.key === "Enter") renameFolder(folder.id); if (e.key === "Escape") setRenamingFolderId(null) }}
-                          onBlur={() => renameFolder(folder.id)}
-                          autoFocus
-                          className="flex-1 bg-transparent text-xs text-white border-b border-white/30 focus:outline-none mr-2"
-                        />
-                      ) : (
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <svg className="w-3.5 h-3.5 text-[#C9A84C]/60 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-                          <span className="text-xs text-white/80 truncate">{folder.name}</span>
-                          <span className="text-[10px] text-white/25 flex-shrink-0 ml-1">
-                            {folder.videos.length} vídeo{folder.videos.length !== 1 ? "s" : ""}
-                          </span>
+                {folders.map(folder => {
+                  const folderVideos = videos.filter(v => v.folderId === folder.id)
+                  const isUploading = folderUploadingId === folder.id
+                  return (
+                    <div key={folder.id} className="mb-3 rounded-lg border border-white/8 overflow-hidden">
+                      {/* Folder header */}
+                      <div className="flex items-center justify-between px-3 py-2.5 bg-white/5">
+                        {renamingFolderId === folder.id ? (
+                          <input
+                            value={renamingName}
+                            onChange={e => setRenamingName(e.target.value)}
+                            onKeyDown={e => { if (e.key === "Enter") renameFolder(folder.id); if (e.key === "Escape") setRenamingFolderId(null) }}
+                            onBlur={() => renameFolder(folder.id)}
+                            autoFocus
+                            className="flex-1 bg-transparent text-xs text-white border-b border-white/30 focus:outline-none mr-2"
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <svg className="w-3.5 h-3.5 text-[#C9A84C]/60 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                            <span className="text-xs text-white/80 truncate">{folder.name}</span>
+                            <span className="text-[10px] text-white/25 flex-shrink-0 ml-1">
+                              {folderVideos.length} vídeo{folderVideos.length !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                          <button
+                            onClick={() => { setRenamingFolderId(folder.id); setRenamingName(folder.name) }}
+                            className="p-1 text-white/25 hover:text-white/60 transition-colors"
+                            title="Renomear"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          </button>
+                          <button
+                            onClick={() => deleteFolder(folder.id)}
+                            className="p-1 text-white/25 hover:text-red-400 transition-colors"
+                            title="Remover pasta"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 6h18M19 6l-1 14H6L5 6M10 6V4h4v2"/></svg>
+                          </button>
                         </div>
-                      )}
-                      <div className="flex items-center gap-1 ml-2 flex-shrink-0">
-                        <button
-                          onClick={() => { setRenamingFolderId(folder.id); setRenamingName(folder.name) }}
-                          className="p-1 text-white/25 hover:text-white/60 transition-colors"
-                          title="Renomear"
-                        >
-                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        </button>
-                        <button
-                          onClick={() => deleteFolder(folder.id)}
-                          className="p-1 text-white/25 hover:text-red-400 transition-colors"
-                          title="Remover pasta"
-                        >
-                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 6h18M19 6l-1 14H6L5 6M10 6V4h4v2"/></svg>
-                        </button>
+                      </div>
+
+                      {/* Upload button */}
+                      <div className="px-3 pt-2.5 pb-2">
+                        {isUploading ? (
+                          <div className="p-2.5 bg-white/5 rounded-lg border border-white/10 mb-2">
+                            <div className="flex justify-between text-[10px] text-white/40 mb-1.5">
+                              <span>Enviando vídeo…</span>
+                              <span>{folderUploadProgress}%</span>
+                            </div>
+                            <div className="h-px bg-white/10 overflow-hidden rounded">
+                              <div className="h-full bg-[#C9A84C] transition-all" style={{ width: `${folderUploadProgress}%` }} />
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { folderUploadTargetId.current = folder.id; folderVideoInputRef.current?.click() }}
+                            disabled={!!folderUploadingId}
+                            className="w-full py-2 border border-dashed border-white/15 hover:border-[#C9A84C]/40 hover:text-[#C9A84C]/60 rounded text-[10px] text-white/30 transition-all flex items-center justify-center gap-1.5 disabled:opacity-30 mb-2">
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            Upload de vídeo para esta pasta
+                          </button>
+                        )}
+
+                        {/* Folder videos list — same rich card as main list */}
+                        {folderVideos.length > 0 && (
+                          <div className="flex flex-col gap-2 mt-1">
+                            {folderVideos.map(v => (
+                              <div key={v.id} className="rounded-lg border border-white/8 bg-white/4 overflow-hidden">
+
+                                {/* Main row */}
+                                <div className="flex items-center gap-2 p-2 group">
+                                  {/* Thumbnail — click to open picker */}
+                                  <button
+                                    onClick={() => setThumbOpenId(thumbOpenId === v.id ? null : v.id)}
+                                    className="relative flex-shrink-0 rounded overflow-hidden group/thumb"
+                                    title="Alterar thumbnail">
+                                    {v.thumbnailUrl
+                                      ? <img src={v.thumbnailUrl} className="w-12 h-7 object-cover" alt="" />
+                                      : <div className="w-12 h-7 bg-white/8 flex items-center justify-center">
+                                          <svg className="w-3 h-3 text-white/20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21"/></svg>
+                                        </div>
+                                    }
+                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center">
+                                      <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                                      </svg>
+                                    </div>
+                                  </button>
+
+                                  {/* Title — click to rename */}
+                                  <div className="flex-1 min-w-0">
+                                    {editingVideoId === v.id ? (
+                                      <input
+                                        value={editingVideoName}
+                                        onChange={e => setEditingVideoName(e.target.value)}
+                                        onKeyDown={e => {
+                                          if (e.key === "Enter") saveRename(v.id)
+                                          if (e.key === "Escape") setEditingVideoId(null)
+                                        }}
+                                        onBlur={() => saveRename(v.id)}
+                                        autoFocus
+                                        className="w-full bg-transparent border-b border-[#C9A84C]/50 text-xs text-white focus:outline-none pb-0.5"
+                                      />
+                                    ) : (
+                                      <button
+                                        onClick={() => startRename(v)}
+                                        className="text-left w-full group/title"
+                                        title="Clique para renomear">
+                                        <p className="text-xs text-white/55 truncate font-light group-hover/title:text-white/80 transition-colors">{v.title}</p>
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* Delete */}
+                                  <button
+                                    onClick={() => deleteFolderVideo(v.id, folder.id)}
+                                    className="text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                                    title="Remover">
+                                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M3 6h18M19 6l-1 14H6L5 6M10 6V4h4v2"/>
+                                    </svg>
+                                  </button>
+                                </div>
+
+                                {/* Thumbnail picker panel */}
+                                {thumbOpenId === v.id && (
+                                  <div className="border-t border-white/8 px-3 py-3 bg-black/20 flex flex-col gap-3">
+                                    <p className="text-[9px] tracking-[0.18em] uppercase text-white/30 font-light">Thumbnail</p>
+
+                                    {v.hlsUrl && (
+                                      <div className="flex flex-col gap-1.5">
+                                        <label className="text-[10px] text-white/40">Frame do vídeo (hh:mm:ss)</label>
+                                        <div className="flex gap-2">
+                                          <input
+                                            value={thumbTime}
+                                            onChange={e => setThumbTime(e.target.value)}
+                                            placeholder="00:00:00"
+                                            className="flex-1 px-2 py-1.5 rounded bg-white/5 border border-white/12 text-xs text-white font-mono focus:outline-none focus:border-[#C9A84C]/40"
+                                          />
+                                          <button
+                                            onClick={() => setThumbFromFrame(v.id)}
+                                            disabled={thumbLoading}
+                                            className="px-2.5 py-1.5 rounded bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 border border-[#C9A84C]/25 text-[#C9A84C] text-[10px] transition-colors disabled:opacity-40 whitespace-nowrap">
+                                            {thumbLoading ? "…" : "Usar frame"}
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    <button
+                                      onClick={() => { setThumbUploadId(v.id); thumbFileRef.current?.click() }}
+                                      disabled={thumbLoading}
+                                      className="w-full py-2 border border-dashed border-white/15 hover:border-white/30 rounded text-[10px] text-white/35 hover:text-white/60 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40">
+                                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                                      </svg>
+                                      Upload imagem
+                                    </button>
+
+                                    <button
+                                      onClick={() => setThumbOpenId(null)}
+                                      className="text-[10px] text-white/20 hover:text-white/40 transition-colors text-center">
+                                      Fechar
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
-
-                    {/* Assign videos to folder */}
-                    {videos.length > 0 ? (
-                      <div className="px-3 py-2.5 flex flex-col gap-1.5">
-                        {videos.map(v => {
-                          const inFolder = folder.videos.some(fv => fv.id === v.id)
-                          return (
-                            <label key={v.id} className="flex items-center gap-2.5 cursor-pointer group">
-                              <input
-                                type="checkbox"
-                                checked={inFolder}
-                                onChange={() => assignVideoToFolder(v.id, inFolder ? null : folder.id)}
-                                className="w-3.5 h-3.5 rounded accent-[#C9A84C] cursor-pointer"
-                              />
-                              {v.thumbnailUrl
-                                ? <img src={v.thumbnailUrl} className="w-9 h-5 object-cover rounded flex-shrink-0" alt="" />
-                                : <div className="w-9 h-5 bg-white/8 rounded flex-shrink-0" />
-                              }
-                              <span className="text-xs text-white/50 group-hover:text-white/75 transition-colors truncate flex-1">{v.title}</span>
-                            </label>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <p className="px-3 py-2 text-[10px] text-white/20">Adicione vídeos para organizar em pastas</p>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
@@ -694,15 +1257,110 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                   Adicionar Vídeo
                 </button>
               </div>
+              {/* Full video list with rename + thumbnail for ALL videos */}
               {videos.length > 0 && (
                 <div className="mt-6 flex flex-col gap-2">
-                  {videos.map((v, i) => (
-                    <div key={v.id} className="flex items-center gap-2 p-2.5 bg-white/4 rounded-lg border border-white/8 group">
-                      <span className="text-white/20 text-xs w-4">{i + 1}</span>
-                      <p className="text-xs text-white/60 flex-1 truncate font-light">{v.title}</p>
-                      <button onClick={() => deleteVideo(v.id)} className="text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                      </button>
+                  <p className="text-[10px] text-white/25 font-light mb-1 leading-relaxed">
+                    Clique na thumbnail para alterar. Clique no nome para renomear.
+                  </p>
+                  {videos.map(v => (
+                    <div key={v.id} className="rounded-lg border border-white/8 bg-white/4 overflow-hidden">
+                      {/* Main row */}
+                      <div className="flex items-center gap-2 p-2 group">
+                        {/* Thumbnail — click to open picker */}
+                        <button
+                          onClick={() => setThumbOpenId(thumbOpenId === v.id ? null : v.id)}
+                          className="relative flex-shrink-0 rounded overflow-hidden group/thumb"
+                          title="Alterar thumbnail">
+                          {v.thumbnailUrl
+                            ? <img src={v.thumbnailUrl} className="w-12 h-7 object-cover" alt="" />
+                            : <div className="w-12 h-7 bg-white/8 flex items-center justify-center">
+                                <svg className="w-3 h-3 text-white/20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21"/></svg>
+                              </div>
+                          }
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center">
+                            <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                            </svg>
+                          </div>
+                        </button>
+
+                        {/* Title — click to rename */}
+                        <div className="flex-1 min-w-0">
+                          {editingVideoId === v.id ? (
+                            <input
+                              value={editingVideoName}
+                              onChange={e => setEditingVideoName(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === "Enter") saveRename(v.id)
+                                if (e.key === "Escape") setEditingVideoId(null)
+                              }}
+                              onBlur={() => saveRename(v.id)}
+                              autoFocus
+                              className="w-full bg-transparent border-b border-[#C9A84C]/50 text-xs text-white focus:outline-none pb-0.5"
+                            />
+                          ) : (
+                            <button onClick={() => startRename(v)} className="text-left w-full group/title" title="Clique para renomear">
+                              <p className="text-xs text-white/60 truncate font-light group-hover/title:text-white/85 transition-colors">{v.title}</p>
+                              {v.folderId && (
+                                <p className="text-[9px] text-white/25 mt-0.5 truncate">
+                                  📁 {folders.find(f => f.id === v.folderId)?.name ?? "Pasta"}
+                                </p>
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Delete */}
+                        <button onClick={() => v.folderId ? deleteFolderVideo(v.id, v.folderId) : deleteVideo(v.id)}
+                          className="text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0" title="Remover">
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 6h18M19 6l-1 14H6L5 6M10 6V4h4v2"/>
+                          </svg>
+                        </button>
+                      </div>
+
+                      {/* Thumbnail picker panel */}
+                      {thumbOpenId === v.id && (
+                        <div className="border-t border-white/8 px-3 py-3 bg-black/20 flex flex-col gap-3">
+                          <p className="text-[9px] tracking-[0.18em] uppercase text-white/30 font-light">Thumbnail</p>
+
+                          {v.hlsUrl && (
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-[10px] text-white/40">Frame do vídeo (hh:mm:ss)</label>
+                              <div className="flex gap-2">
+                                <input
+                                  value={thumbTime}
+                                  onChange={e => setThumbTime(e.target.value)}
+                                  placeholder="00:00:00"
+                                  className="flex-1 px-2 py-1.5 rounded bg-white/5 border border-white/12 text-xs text-white font-mono focus:outline-none focus:border-[#C9A84C]/40"
+                                />
+                                <button
+                                  onClick={() => setThumbFromFrame(v.id)}
+                                  disabled={thumbLoading}
+                                  className="px-2.5 py-1.5 rounded bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 border border-[#C9A84C]/25 text-[#C9A84C] text-[10px] transition-colors disabled:opacity-40 whitespace-nowrap">
+                                  {thumbLoading ? "…" : "Usar frame"}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          <button
+                            onClick={() => { setThumbUploadId(v.id); thumbFileRef.current?.click() }}
+                            disabled={thumbLoading}
+                            className="w-full py-2 border border-dashed border-white/15 hover:border-white/30 rounded text-[10px] text-white/35 hover:text-white/60 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40">
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            Upload imagem
+                          </button>
+
+                          <button onClick={() => setThumbOpenId(null)}
+                            className="text-[10px] text-white/20 hover:text-white/40 transition-colors text-center">
+                            Fechar
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -740,9 +1398,8 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
           {section === "background" && (
             <div>
               <SectionTitle>Imagem de Capa</SectionTitle>
-              <input ref={coverFileRef} type="file" accept="image/*" className="hidden"
-                onChange={e => e.target.files?.[0] && handleCoverUpload(e.target.files[0])} />
 
+              {/* Current cover preview */}
               {coverUrl && (
                 <div className="relative mb-4 rounded-lg overflow-hidden aspect-video bg-white/5">
                   <img src={coverUrl} className="w-full h-full object-cover" alt="" />
@@ -753,6 +1410,35 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                 </div>
               )}
 
+              {/* Quick select from video thumbnails */}
+              {videos.filter(v => v.thumbnailUrl).length > 0 && (
+                <div className="mb-5">
+                  <label className="text-[10px] tracking-widest uppercase text-white/30 block mb-2">Usar thumbnail de um vídeo</label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {videos.filter(v => v.thumbnailUrl).map(v => (
+                      <button
+                        key={v.id}
+                        onClick={async () => {
+                          setCoverUrl(v.thumbnailUrl!)
+                          await patch({ coverImageUrl: v.thumbnailUrl })
+                        }}
+                        className={`relative group rounded overflow-hidden aspect-video border-2 transition-all ${coverUrl === v.thumbnailUrl ? "border-[#C9A84C]" : "border-transparent hover:border-white/30"}`}
+                        title={v.title}>
+                        <img src={v.thumbnailUrl!} className="w-full h-full object-cover" alt={v.title} />
+                        {coverUrl === v.thumbnailUrl && (
+                          <div className="absolute inset-0 bg-[#C9A84C]/20 flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1">
+                          <p className="text-[9px] text-white/80 leading-tight truncate">{v.title}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <button onClick={() => coverFileRef.current?.click()} disabled={uploadingCover}
                 className="w-full py-6 border border-dashed border-white/15 rounded-lg text-white/30 hover:text-white/50 hover:border-white/25 transition-all text-xs tracking-wider flex flex-col items-center gap-2 mb-4">
                 {uploadingCover ? "Enviando…" : (
@@ -760,7 +1446,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                     <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
                     </svg>
-                    <span>Upload de imagem</span>
+                    <span>Upload de nova imagem</span>
                   </>
                 )}
               </button>
@@ -786,55 +1472,6 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
               <p className="text-white/30 text-xs font-light mb-5 leading-relaxed">
                 Toca suavemente enquanto o cliente navega pela galeria. Pausa automaticamente quando um vídeo é reproduzido.
               </p>
-
-              {/* Upload do computador */}
-              <input ref={musicFileRef} type="file" accept="audio/*" className="hidden"
-                onChange={async e => {
-                  const file = e.target.files?.[0]
-                  if (!file) return
-                  setUploadingMusic(true)
-                  setMusicUploadProgress(0)
-                  setMusicUploadError("")
-
-                  const tokenRes = await fetch(`/api/galleries/${gallery.id}/music-upload-token`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ filename: file.name }),
-                  })
-                  if (!tokenRes.ok) {
-                    setMusicUploadError("Erro ao iniciar upload de música")
-                    setUploadingMusic(false)
-                    return
-                  }
-                  const { uploadUrl, apiKey, cdnUrl } = await tokenRes.json()
-
-                  const xhr = new XMLHttpRequest()
-                  xhr.open("PUT", uploadUrl)
-                  xhr.setRequestHeader("AccessKey", apiKey)
-                  xhr.setRequestHeader("Content-Type", file.type || "audio/mpeg")
-                  xhr.upload.onprogress = (ev) => {
-                    if (ev.lengthComputable) setMusicUploadProgress(Math.round((ev.loaded / ev.total) * 100))
-                  }
-                  xhr.onload = async () => {
-                    if (xhr.status === 200 || xhr.status === 201) {
-                      setMusicUrl(cdnUrl)
-                      await patch({ musicUrl: cdnUrl })
-                      setMusicSaved(true)
-                      setTimeout(() => setMusicSaved(false), 2000)
-                    } else {
-                      setMusicUploadError(`Upload falhou (${xhr.status})`)
-                    }
-                    setUploadingMusic(false)
-                    setMusicUploadProgress(0)
-                  }
-                  xhr.onerror = () => {
-                    setMusicUploadError("Erro de conexão durante o upload")
-                    setUploadingMusic(false)
-                  }
-                  xhr.send(file)
-                  e.target.value = ""
-                }}
-              />
 
               {uploadingMusic ? (
                 <div className="p-4 bg-white/5 rounded-lg border border-white/10 mb-4">
@@ -1015,7 +1652,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
               <div className="flex gap-2">
                 <input value={slug} onChange={e => setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
                   className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/12 text-sm text-white font-light focus:outline-none focus:border-[#C9A84C]/50" />
-                <button onClick={async () => { await patch({ slug }); setSettingsSaved(true); setTimeout(() => setSettingsSaved(false), 2000) }}
+                <button onClick={async () => { await patch({ slug }); setSettingsSaved(true); refreshPreview(); setTimeout(() => setSettingsSaved(false), 2000) }}
                   className="px-3 py-2 bg-white/8 hover:bg-white/15 rounded-lg text-xs text-white/60 border border-white/10 transition-colors">
                   {settingsSaved ? "✓" : "Salvar"}
                 </button>
@@ -1025,7 +1662,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
               <div className="mt-6 p-3 bg-white/4 rounded-lg border border-white/8">
                 <p className="text-[10px] text-white/40 leading-relaxed">
                   <strong className="text-white/60">Domínio customizado</strong><br />
-                  Para links como <span className="text-[#C9A84C]/70">galeria.amenicfilmes.com.br/{slug}</span>, adicione um CNAME <code className="text-white/50">galeria</code> apontando para o seu app Netlify e configure o domínio personalizado no painel da Netlify.
+                  O link da galeria é <span className="text-[#C9A84C]/70">amenicfilmes.com.br/g/{slug}</span>. Você pode enviar esse link diretamente ao cliente.
                 </p>
               </div>
             </div>
@@ -1035,6 +1672,25 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
           {section === "deliver" && (
             <div>
               <SectionTitle>Entrega ao Cliente</SectionTitle>
+
+              {/* URL personalizada */}
+              <div className="mb-4">
+                <p className="text-[10px] text-white/40 mb-2 tracking-wider uppercase">URL da galeria</p>
+                <div className="flex gap-2 mb-1">
+                  <input
+                    value={slug}
+                    onChange={e => setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""))}
+                    placeholder="nome-do-casal"
+                    className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/12 text-sm text-white font-light focus:outline-none focus:border-[#C9A84C]/50"
+                  />
+                  <button
+                    onClick={async () => { await patch({ slug }); setSettingsSaved(true); refreshPreview(); setTimeout(() => setSettingsSaved(false), 2000) }}
+                    className="px-3 py-2 bg-[#C9A84C]/20 hover:bg-[#C9A84C]/30 border border-[#C9A84C]/30 rounded-lg text-xs text-[#C9A84C] transition-colors whitespace-nowrap">
+                    {settingsSaved ? "✓ Salvo" : "Salvar"}
+                  </button>
+                </div>
+                <p className="text-[10px] text-white/25 font-light">amenicfilmes.com.br/g/<span className="text-white/40">{slug}</span></p>
+              </div>
 
               <div className="p-3 rounded-lg bg-white/5 border border-white/10 mb-4">
                 <p className="text-[10px] text-white/40 mb-1.5 tracking-wider uppercase">Link da galeria</p>
@@ -1064,7 +1720,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
               <div className="text-xs text-white/35 font-light leading-relaxed space-y-2">
                 <p>• Envie o link acima por WhatsApp ou e-mail</p>
                 <p>• O cliente acessa sem precisar criar conta</p>
-                <p>• Para domínio próprio como <span className="text-[#C9A84C]/60">galeria.amenicfilmes.com.br/{slug}</span>, configure o CNAME no seu provedor DNS</p>
+                <p>• O link público da galeria é <span className="text-[#C9A84C]/60">amenicfilmes.com.br/g/{slug}</span></p>
                 <p>• Ative senha na aba Config para proteção adicional</p>
               </div>
             </div>
@@ -1077,7 +1733,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
             <div className="w-[600px] h-[380px] bg-[#0a0a0a] rounded-lg border border-white/8 overflow-hidden relative shadow-2xl mx-auto">
               <iframe
                 key={previewKey}
-                src={`/g/${gallery.slug}`}
+                src={`/g/${slug}`}
                 className="w-full h-full border-0 pointer-events-none"
                 style={{ transform: "scale(0.95)", transformOrigin: "center center" }}
                 title="Preview"
@@ -1088,7 +1744,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                 </div>
               )}
             </div>
-            <a href={`/g/${gallery.slug}`} target="_blank"
+            <a href={`/g/${slug}`} target="_blank"
               className="mt-4 inline-block text-xs text-white/25 hover:text-white/50 tracking-widest uppercase transition-colors">
               Abrir em nova aba →
             </a>

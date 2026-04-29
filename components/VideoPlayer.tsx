@@ -3,6 +3,37 @@
 import { useEffect, useRef, useState } from "react"
 import Hls from "hls.js"
 
+/**
+ * Dispara download de vídeo via URL same-origin (rota API proxy).
+ * Usa showSaveFilePicker para streaming em Chrome/Edge; caso contrário
+ * cria um <a download> que inicia a transferência diretamente.
+ */
+async function triggerDownload(downloadApiUrl: string, safeName: string) {
+  // 1. File System Access API (Chrome/Edge 86+) — streaming sem RAM extra
+  if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: safeName,
+        types: [{ description: "Vídeo MP4", accept: { "video/mp4": [".mp4"] } }],
+      })
+      const res = await fetch(downloadApiUrl)
+      if (!res.ok || !res.body) throw new Error("proxy falhou")
+      const writable = await handle.createWritable()
+      await res.body.pipeTo(writable)
+      return
+    } catch { /* cancelado ou não suportado */ }
+  }
+
+  // 2. <a download> — same-origin, sem bloqueio de popup, funciona em todos os browsers
+  const a = document.createElement("a")
+  a.href     = downloadApiUrl
+  a.download = safeName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
 interface VideoPlayerProps {
   hlsUrl?: string | null
   mp4Url?: string | null
@@ -10,13 +41,19 @@ interface VideoPlayerProps {
   title: string
   primaryColor?: string
   downloadEnabled?: boolean
+  /** URL same-origin para download via proxy da API (p.ex. /api/galleries/ID/videos/download?videoId=ID) */
+  downloadApiUrl?: string | null
   /** When true, fills the parent container height instead of using aspect-video */
   fillContainer?: boolean
+  /** Auto-play as soon as the source is ready */
+  autoPlay?: boolean
   /** Called when video starts playing (use to pause background music) */
   onVideoPlay?: () => void
   /** Called when video pauses or ends (use to resume background music) */
   onVideoPause?: () => void
 }
+
+type QualityLevel = { index: number; label: string; height: number }
 
 export function VideoPlayer({
   hlsUrl,
@@ -25,12 +62,14 @@ export function VideoPlayer({
   title,
   primaryColor = "#C9A84C",
   downloadEnabled = true,
+  downloadApiUrl,
   fillContainer = false,
+  autoPlay = false,
   onVideoPlay,
   onVideoPause,
 }: VideoPlayerProps) {
-  const videoRef    = useRef<HTMLVideoElement>(null)
-  const hlsRef      = useRef<Hls | null>(null)
+  const videoRef     = useRef<HTMLVideoElement>(null)
+  const hlsRef       = useRef<Hls | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const [playing,      setPlaying]      = useState(false)
@@ -39,8 +78,11 @@ export function VideoPlayer({
   const [volume,       setVolume]       = useState(1)
   const [fullscreen,   setFullscreen]   = useState(false)
   const [showControls, setShowControls] = useState(true)
-  const controlsTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const [levels,       setLevels]       = useState<QualityLevel[]>([])
+  const [currentLevel, setCurrentLevel] = useState<number>(-2) // -2 = not ready
+  const [showQuality,  setShowQuality]  = useState(false)
 
+  const controlsTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const videoSrc = hlsUrl || mp4Url
 
   /* ── HLS / MP4 setup ─────────────────────────────────────────── */
@@ -49,19 +91,57 @@ export function VideoPlayer({
     if (!video || !videoSrc) return
 
     if (hlsUrl && Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: true })
+      const hls = new Hls({
+        enableWorker: true,
+        startLevel: -1,
+        capLevelToPlayerSize: false,
+        abrEwmaDefaultEstimate: 10_000_000,
+      })
       hlsRef.current = hls
       hls.loadSource(hlsUrl)
       hls.attachMedia(video)
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        // Build quality level list
+        const qs: QualityLevel[] = hls.levels.map((l, i) => ({
+          index: i,
+          height: l.height,
+          label: l.height >= 2160 ? "4K" : `${l.height}p`,
+        }))
+        // Deduplicate by label, keep highest bitrate per height
+        const seen = new Set<string>()
+        const unique = qs.filter(q => { if (seen.has(q.label)) return false; seen.add(q.label); return true })
+        setLevels(unique)
+
+        // Force max quality by default
+        const maxIdx = hls.levels.length - 1
+        hls.currentLevel = maxIdx
+        hls.loadLevel    = maxIdx
+        setCurrentLevel(maxIdx)
+
+        if (autoPlay) video.play().catch(() => {})
+      })
     } else if (mp4Url) {
       video.src = mp4Url
+      if (autoPlay) video.play().catch(() => {})
     } else if (hlsUrl) {
       // Native HLS (Safari)
       video.src = hlsUrl
+      if (autoPlay) video.play().catch(() => {})
     }
 
-    return () => { hlsRef.current?.destroy() }
-  }, [hlsUrl, mp4Url, videoSrc])
+    return () => { hlsRef.current?.destroy(); hlsRef.current = null }
+  }, [hlsUrl, mp4Url, videoSrc, autoPlay])
+
+  /* ── Quality change ──────────────────────────────────────────── */
+  const changeQuality = (idx: number) => {
+    const hls = hlsRef.current
+    if (!hls) return
+    hls.currentLevel = idx
+    hls.loadLevel    = idx
+    setCurrentLevel(idx)
+    setShowQuality(false)
+  }
 
   /* ── Playback controls ────────────────────────────────────────── */
   const togglePlay = () => {
@@ -113,7 +193,7 @@ export function VideoPlayer({
     setShowControls(true)
     clearTimeout(controlsTimeout.current)
     controlsTimeout.current = setTimeout(() => {
-      if (playing) setShowControls(false)
+      if (playing) { setShowControls(false); setShowQuality(false) }
     }, 3000)
   }
 
@@ -122,6 +202,13 @@ export function VideoPlayer({
     const m = Math.floor(s / 60)
     return `${m}:${Math.floor(s % 60).toString().padStart(2, "0")}`
   }
+
+  const currentQualityLabel = (() => {
+    if (!hlsUrl) return null
+    if (levels.length === 0) return null
+    const found = levels.find(l => l.index === currentLevel)
+    return found ? found.label : levels[levels.length - 1]?.label ?? null
+  })()
 
   /* ── No source ───────────────────────────────────────────────── */
   if (!videoSrc) {
@@ -138,7 +225,7 @@ export function VideoPlayer({
       ref={containerRef}
       className={`relative w-full bg-black overflow-hidden group cursor-pointer ${fillContainer ? "h-full" : "aspect-video rounded-lg"}`}
       onMouseMove={showControlsTemporarily}
-      onMouseLeave={() => playing && setShowControls(false)}
+      onMouseLeave={() => { if (playing) { setShowControls(false); setShowQuality(false) } }}
     >
       <video
         ref={videoRef}
@@ -161,8 +248,7 @@ export function VideoPlayer({
       {!playing && (
         <button onClick={togglePlay}
           className="absolute inset-0 flex items-center justify-center z-10">
-          <div className="w-20 h-20 rounded-full flex items-center justify-center backdrop-blur-sm"
-            style={{ backgroundColor: `${primaryColor}cc` }}>
+          <div className="w-20 h-20 rounded-full flex items-center justify-center backdrop-blur-sm bg-black/40 border border-white/20">
             <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
             </svg>
@@ -247,16 +333,59 @@ export function VideoPlayer({
             {/* Right controls */}
             <div className="flex items-center gap-3 flex-shrink-0">
 
-              {/* Download */}
-              {downloadEnabled && mp4Url && (
-                <a href={mp4Url} download target="_blank"
+              {/* Quality selector — only for HLS */}
+              {levels.length > 0 && (
+                <div className="relative">
+                  <button
+                    onClick={e => { e.stopPropagation(); setShowQuality(q => !q) }}
+                    className="text-white/60 hover:text-white transition-colors text-[11px] font-mono tracking-wide px-1.5 py-0.5 border border-white/20 hover:border-white/40 rounded"
+                    title="Qualidade">
+                    {currentQualityLabel ?? "HD"}
+                  </button>
+
+                  {showQuality && (
+                    <div className="absolute bottom-8 right-0 bg-black/90 border border-white/15 rounded-lg overflow-hidden shadow-xl backdrop-blur-sm"
+                      onClick={e => e.stopPropagation()}>
+                      {/* Auto option */}
+                      <button
+                        onClick={() => { hlsRef.current && (hlsRef.current.currentLevel = -1); setCurrentLevel(-1); setShowQuality(false) }}
+                        className={`w-full px-4 py-2 text-left text-xs hover:bg-white/10 transition-colors whitespace-nowrap flex items-center gap-2
+                          ${currentLevel === -1 ? "text-white" : "text-white/50"}`}>
+                        {currentLevel === -1 && <span className="w-1.5 h-1.5 rounded-full bg-white inline-block" />}
+                        {currentLevel !== -1 && <span className="w-1.5 h-1.5 inline-block" />}
+                        Auto
+                      </button>
+                      {/* Quality levels — highest first */}
+                      {[...levels].reverse().map(l => (
+                        <button key={l.index}
+                          onClick={() => changeQuality(l.index)}
+                          className={`w-full px-4 py-2 text-left text-xs hover:bg-white/10 transition-colors whitespace-nowrap flex items-center gap-2
+                            ${currentLevel === l.index ? "text-white" : "text-white/50"}`}>
+                          {currentLevel === l.index && <span className="w-1.5 h-1.5 rounded-full bg-white inline-block" />}
+                          {currentLevel !== l.index && <span className="w-1.5 h-1.5 inline-block" />}
+                          {l.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Download — via proxy API (same-origin, sem bloqueio CORS) */}
+              {downloadEnabled && downloadApiUrl && (
+                <button
                   className="text-white/60 hover:text-white transition-colors"
                   title="Baixar vídeo"
-                  onClick={e => e.stopPropagation()}>
+                  onClick={e => {
+                    e.stopPropagation()
+                    const safeName = `${title.replace(/[^a-z0-9\s\-_]/gi, "").trim() || "video"}.mp4`
+                    triggerDownload(downloadApiUrl, safeName)
+                  }}
+                >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round">
                     <path d="M12 3v13"/><path d="M8 12l4 4 4-4"/><path d="M3 19h18"/>
                   </svg>
-                </a>
+                </button>
               )}
 
               {/* Fullscreen */}
