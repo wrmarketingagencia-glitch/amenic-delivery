@@ -597,7 +597,7 @@ function PhotosSection({
             <div key={photo.id} className="aspect-square overflow-hidden rounded">
               <GalleryPhoto
                 photo={photo}
-                priority={i < 8}
+                priority={i < 30}
                 onClick={() => setLightboxIndex(i)}
               />
             </div>
@@ -609,7 +609,7 @@ function PhotosSection({
             <div key={photo.id} className="break-inside-avoid mb-1">
               <GalleryPhoto
                 photo={photo}
-                priority={i < 8}
+                priority={i < 30}
                 onClick={() => setLightboxIndex(i)}
               />
             </div>
