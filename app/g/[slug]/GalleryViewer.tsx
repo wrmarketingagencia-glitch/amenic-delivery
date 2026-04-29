@@ -72,6 +72,17 @@ function PhotoLightbox({
     return () => { document.body.style.overflow = prev }
   }, [])
 
+  /* Preload fotos anterior e próxima para navegação instantânea */
+  useEffect(() => {
+    const preload = (idx: number) => {
+      if (idx < 0 || idx >= photos.length) return
+      const img = new window.Image()
+      img.src = photos[idx].url   // full-res — já em cache quando abrir
+    }
+    preload(current - 1)
+    preload(current + 1)
+  }, [current, photos])
+
   /* Touch swipe */
   const touchStartX = useRef(0)
   const onTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX }
@@ -230,10 +241,11 @@ function PhotoLightbox({
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={p.thumbnailUrl ?? p.url}
+                  src={photoThumbUrl(p.url, 160, 72)}
                   alt=""
                   className="w-full h-full object-cover"
                   loading="lazy"
+                  decoding="async"
                 />
               </button>
             ))}
@@ -242,6 +254,28 @@ function PhotoLightbox({
       )}
     </div>
   )
+}
+
+/* ── Bunny CDN Image Optimizer ───────────────────────────────────
+   Gera URL com parâmetros de redimensionamento do Bunny CDN Optimizer.
+   Requer que o Optimizer esteja habilitado na zona CDN (AMENICFOTOS).
+   Se não estiver habilitado, os parâmetros são ignorados e a URL original
+   é retornada — sem erros, apenas sem otimização.
+
+   Configurar em: Bunny Dashboard → CDN → AMENICFOTOS → Optimizer
+   ────────────────────────────────────────────────────────────── */
+function photoThumbUrl(url: string, width: number, quality = 82): string {
+  if (!url) return url
+  try {
+    const u = new URL(url)
+    // Não adiciona params em URLs que já têm query string complexa
+    u.searchParams.set("width",   String(width))
+    u.searchParams.set("quality", String(quality))
+    u.searchParams.set("format",  "auto")   // WebP em browsers compatíveis
+    return u.toString()
+  } catch {
+    return url
+  }
 }
 
 /* ── Foto na galeria: clicável para abrir lightbox ───────────────
@@ -259,8 +293,10 @@ function GalleryPhoto({
   onClick?: () => void
 }) {
   const [loaded, setLoaded] = useState(false)
-  const displaySrc  = photo.thumbnailUrl ?? photo.url
-  const downloadSrc = photo.url
+
+  // Grid: 800px de largura, qualidade 85 — rápido e nítido
+  // Sempre usa photo.url (original) como base para manter qualidade máxima
+  const displaySrc = photoThumbUrl(photo.url, 800, 85)
 
   return (
     <div
@@ -268,12 +304,12 @@ function GalleryPhoto({
       onClick={onClick}
     >
       {!loaded && <div className="absolute inset-0 bg-white/6 animate-pulse" />}
-      {/* Thumbnails são minúsculas (8-20 KB) → sempre eager, sem lazy loading */}
+      {/* Primeiras fotos: eager (aparecem imediatamente). Resto: lazy (carrega conforme rola) */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={displaySrc}
         alt={photo.caption || ""}
-        loading="eager"
+        loading={priority ? "eager" : "lazy"}
         decoding="async"
         fetchPriority={priority ? "high" : "auto"}
         onLoad={() => setLoaded(true)}
@@ -281,19 +317,15 @@ function GalleryPhoto({
         style={{ opacity: loaded ? 1 : 0 }}
       />
       {/* Download button — full-res original; stops click from bubbling to lightbox */}
-      <a
-        href={downloadSrc}
-        download
-        target="_blank"
-        rel="noreferrer"
-        onClick={e => e.stopPropagation()}
+      <button
+        onClick={e => { e.stopPropagation(); downloadSinglePhoto(photo.url) }}
         title="Baixar foto em alta resolução"
         className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-black/80 transition-all opacity-0 group-hover:opacity-100 max-sm:opacity-100"
       >
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round">
           <path d="M12 3v13"/><path d="M8 12l4 4 4-4"/><path d="M3 19h18"/>
         </svg>
-      </a>
+      </button>
     </div>
   )
 }
@@ -565,7 +597,7 @@ function PhotosSection({
             <div key={photo.id} className="aspect-square overflow-hidden rounded">
               <GalleryPhoto
                 photo={photo}
-                priority={i < 4}
+                priority={i < 8}
                 onClick={() => setLightboxIndex(i)}
               />
             </div>
@@ -577,7 +609,7 @@ function PhotosSection({
             <div key={photo.id} className="break-inside-avoid mb-1">
               <GalleryPhoto
                 photo={photo}
-                priority={i < 4}
+                priority={i < 8}
                 onClick={() => setLightboxIndex(i)}
               />
             </div>
