@@ -719,7 +719,7 @@ function PremiumPhotoGallery({
   }
 
   return (
-    <div className="flex flex-col" style={{ height: "100svh" }}>
+    <div className="flex flex-col bg-[#080808] min-h-screen">
 
       {/* ── Tab bar ─────────────────────────────────────────────── */}
       <div
@@ -800,45 +800,42 @@ function PremiumPhotoGallery({
         </div>
       )}
 
-      {/* ── Filmstrip horizontal ─────────────────────────────────── */}
+      {/* ── Grid vertical (masonry) ──────────────────────────────── */}
       {currentPhotos.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center bg-[#080808]">
+        <div className="flex items-center justify-center py-24">
           <p className="text-white/20 text-sm tracking-widest">Nenhuma foto nesta pasta</p>
         </div>
       ) : (
-        <div
-          className="flex-1 flex gap-px bg-black overflow-x-auto overflow-y-hidden"
-          style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.08) transparent" }}
-        >
+        <div className="columns-2 sm:columns-3 lg:columns-4 gap-1 p-1">
           {currentPhotos.map((photo, i) => (
-            <button
-              key={photo.id}
-              onClick={() => setLightboxIndex(i)}
-              className="relative flex-shrink-0 h-full overflow-hidden group focus:outline-none"
-              title={photo.caption || undefined}
-              style={{ cursor: "zoom-in" }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={photoThumbUrl(photo.url, 1200, 88)}
-                alt={photo.caption || ""}
-                loading={i < 20 ? "eager" : "lazy"}
-                decoding="async"
-                fetchPriority={i < 10 ? "high" : "auto"}
-                className="h-full w-auto object-cover select-none"
-                draggable={false}
-                style={{ display: "block", maxWidth: "none" }}
-              />
-              {/* Hover escurecer levemente */}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors duration-200" />
-              {/* Caption no hover */}
-              {photo.caption && (
-                <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75), transparent)" }}>
-                  <p className="text-[10px] text-white/80 truncate">{photo.caption}</p>
-                </div>
-              )}
-            </button>
+            <div key={photo.id} className="break-inside-avoid mb-1">
+              <button
+                onClick={() => setLightboxIndex(i)}
+                className="relative w-full overflow-hidden group focus:outline-none"
+                title={photo.caption || undefined}
+                style={{ cursor: "zoom-in" }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={photoThumbUrl(photo.url, 800, 85)}
+                  alt={photo.caption || ""}
+                  loading={i < 30 ? "eager" : "lazy"}
+                  decoding="async"
+                  fetchPriority={i < 10 ? "high" : "auto"}
+                  className="w-full object-cover select-none"
+                  draggable={false}
+                />
+                {/* Hover escurecer levemente */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors duration-200" />
+                {/* Caption no hover */}
+                {photo.caption && (
+                  <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75), transparent)" }}>
+                    <p className="text-[10px] text-white/80 truncate">{photo.caption}</p>
+                  </div>
+                )}
+              </button>
+            </div>
           ))}
         </div>
       )}
