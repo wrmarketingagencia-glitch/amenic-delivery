@@ -686,11 +686,8 @@ function PremiumPhotoGallery({
   /* Pastas que realmente têm fotos */
   const photoFolders = gallery.folders.filter(f => f.photos.length > 0)
 
-  /* Fotos combinadas para a aba "Todas" */
-  const allPhotos: Photo[] = [
-    ...gallery.photos,
-    ...gallery.folders.flatMap(f => f.photos),
-  ]
+  /* Fotos da aba "Todas" — apenas as não atribuídas a pasta */
+  const allPhotos: Photo[] = gallery.photos.filter(p => !p.folderId)
 
   /* Fotos da aba activa */
   const currentPhotos: Photo[] = activeTab === null

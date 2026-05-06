@@ -150,6 +150,10 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
 
   // Photos tab state
   const [photoFolderOpenId, setPhotoFolderOpenId] = useState<string | null>(null)
+  const [folderPhotoUploadingId, setFolderPhotoUploadingId]       = useState<string | null>(null)
+  const [folderPhotoUploadProgress, setFolderPhotoUploadProgress] = useState(0)
+  const folderPhotoInputRef       = useRef<HTMLInputElement>(null)
+  const folderPhotoUploadTargetId = useRef<string | null>(null)
 
   // Folders state
   const [folders, setFolders] = useState<FolderWithItems[]>(gallery.folders ?? [])
@@ -604,6 +608,33 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     if (res.ok) setPhotos(p => p.filter(x => x.id !== photoId))
   }
 
+  const handleFolderPhotoUpload = async (file: File, folderId: string) => {
+    setFolderPhotoUploadingId(folderId)
+    setFolderPhotoUploadProgress(0)
+    const tokenEndpoint = `/api/galleries/${gallery.id}/photos/upload-token`
+    const [url, thumbnailUrl] = await Promise.all([
+      uploadToBunnyStorage(tokenEndpoint, file, pct => setFolderPhotoUploadProgress(pct)),
+      makeThumbnail(file).then(thumb => uploadToBunnyStorage(tokenEndpoint, thumb)),
+    ])
+    setFolderPhotoUploadingId(null)
+    setFolderPhotoUploadProgress(0)
+    if (!url) return
+    const photoRes = await fetch(`/api/galleries/${gallery.id}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, thumbnailUrl: thumbnailUrl ?? null }),
+    })
+    if (!photoRes.ok) return
+    const photo = await photoRes.json()
+    // Atribui à pasta imediatamente via API e salva no estado com folderId já definido
+    await fetch(`/api/galleries/${gallery.id}/folders/assign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "photo", itemId: photo.id, folderId }),
+    })
+    setPhotos(prev => [...prev, { ...photo, folderId }])
+  }
+
   const assignPhotoToFolder = async (photoId: string, folderId: string | null) => {
     await fetch(`/api/galleries/${gallery.id}/folders/assign`, {
       method: "POST",
@@ -810,6 +841,13 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
               const fid = folderUploadTargetId.current
               if (!fid || !e.target.files) return
               Array.from(e.target.files).forEach(f => handleFolderVideoUpload(f, fid))
+              e.target.value = ""
+            }} />
+          <input ref={folderPhotoInputRef} type="file" accept="image/*" multiple className="hidden"
+            onChange={e => {
+              const fid = folderPhotoUploadTargetId.current
+              if (!fid || !e.target.files) return
+              Array.from(e.target.files).forEach(f => handleFolderPhotoUpload(f, fid))
               e.target.value = ""
             }} />
 
@@ -1484,13 +1522,37 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                       )}
 
                       {/* Botão para adicionar fotos livres */}
-                      <div className="px-3 pb-2.5 pt-2">
+                      <div className="px-3 pb-2.5 pt-2 flex flex-col gap-1.5">
+                        {/* Upload direto para esta pasta */}
+                        {folderPhotoUploadingId === folder.id ? (
+                          <div className="p-2 bg-white/5 rounded border border-white/10">
+                            <div className="flex justify-between text-[10px] text-white/40 mb-1">
+                              <span>Enviando foto…</span>
+                              <span>{folderPhotoUploadProgress}%</span>
+                            </div>
+                            <div className="h-px bg-white/10 overflow-hidden rounded">
+                              <div className="h-full bg-[#C9A84C] transition-all" style={{ width: `${folderPhotoUploadProgress}%` }} />
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { folderPhotoUploadTargetId.current = folder.id; folderPhotoInputRef.current?.click() }}
+                            disabled={!!folderPhotoUploadingId}
+                            className="w-full py-1.5 border border-dashed border-white/15 hover:border-white/30 hover:text-white/60 rounded text-[10px] text-white/30 transition-all flex items-center justify-center gap-1.5 disabled:opacity-30"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            Upload de fotos para esta pasta
+                          </button>
+                        )}
+                        {/* Atribuir fotos livres já existentes */}
                         <button
                           onClick={() => setPhotoFolderOpenId(isOpen ? null : folder.id)}
                           disabled={!isOpen && freePhotos.length === 0}
                           className="w-full py-1.5 border border-dashed border-white/15 hover:border-[#C9A84C]/40 hover:text-[#C9A84C]/60 rounded text-[10px] text-white/30 transition-all flex items-center justify-center gap-1.5 disabled:opacity-30"
                         >
-                          {isOpen ? "Fechar" : `+ Adicionar fotos (${freePhotos.length} disponíveis)`}
+                          {isOpen ? "Fechar" : `+ Mover fotos livres (${freePhotos.length} disponíveis)`}
                         </button>
                         {isOpen && freePhotos.length > 0 && (
                           <div className="grid grid-cols-4 gap-1 mt-2">
