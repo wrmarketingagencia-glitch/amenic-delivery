@@ -662,125 +662,6 @@ function SlideshowOverlay({
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   ALBUM BOOK 3D
-   · Livro de foto físico em CSS 3D (perspective + rotateY/X)
-   · Fotos ciclam automaticamente dentro do álbum
-   · Hover abre levemente o livro para mostrar profundidade
-══════════════════════════════════════════════════════════════════ */
-function AlbumBook3D({
-  folder,
-  index,
-  onClick,
-}: {
-  folder: FolderWithItems
-  index: number
-  onClick: () => void
-}) {
-  const [photoIdx, setPhotoIdx] = useState(0)
-  const [hovered,  setHovered]  = useState(false)
-  const sliced = folder.photos.slice(0, 6)
-
-  useEffect(() => {
-    if (sliced.length <= 1) return
-    const t = setInterval(() => setPhotoIdx(i => (i + 1) % sliced.length), 2800)
-    return () => clearInterval(t)
-  }, [sliced.length])
-
-  return (
-    <div
-      className="flex flex-col items-center gap-3 cursor-pointer select-none"
-      style={{ animation: "albumIn 0.55s ease both", animationDelay: `${index * 110}ms` }}
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {/* Perspectiva 3D */}
-      <div className="relative w-full" style={{ perspective: "900px", aspectRatio: "3/4" }}>
-        <div
-          className="absolute inset-0 transition-transform duration-500"
-          style={{
-            transformStyle: "preserve-3d",
-            transform: hovered
-              ? "rotateY(-10deg) rotateX(3deg) scale(1.03)"
-              : "rotateY(-22deg) rotateX(6deg)",
-          }}
-        >
-          {/* Face traseira — gera sombra de profundidade */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background: "linear-gradient(160deg,#e5e5e5,#cccccc)",
-              transform: "translateZ(-16px)",
-              boxShadow: hovered
-                ? "14px 32px 80px rgba(0,0,0,0.82)"
-                : "8px 22px 60px rgba(0,0,0,0.65)",
-              transition: "box-shadow 0.5s ease",
-            }}
-          />
-          {/* Miolo das páginas (borda direita) */}
-          <div
-            className="absolute"
-            style={{
-              top: "2%", bottom: "2%", right: 0, width: 16,
-              background: "linear-gradient(to right,#aaa,#ddd,#f2f2f2)",
-              transform: "rotateY(90deg)",
-              transformOrigin: "right center",
-            }}
-          />
-          {/* Lombada (borda esquerda) */}
-          <div
-            className="absolute"
-            style={{
-              top: 0, bottom: 0, left: 0, width: 12,
-              background: "linear-gradient(to left,#d0d0d0,#adadad)",
-              transform: "rotateY(-90deg)",
-              transformOrigin: "left center",
-            }}
-          />
-          {/* Capa frontal branca */}
-          <div className="absolute inset-0" style={{ background: "white" }}>
-            {/* Área de fotos ciclando */}
-            <div
-              className="absolute overflow-hidden"
-              style={{ top: "7%", left: "7%", right: "7%", bottom: "22%" }}
-            >
-              {sliced.map((photo, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={photo.id}
-                  src={photoThumbUrl(photo.url, 500, 78)}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover"
-                  style={{ opacity: i === photoIdx ? 1 : 0, transition: "opacity 1.2s ease" }}
-                  loading="eager"
-                />
-              ))}
-            </div>
-            {/* Faixa inferior com nome */}
-            <div
-              className="absolute bottom-0 left-0 right-0 flex flex-col justify-center"
-              style={{ height: "22%", padding: "0 8%", borderTop: "1px solid rgba(0,0,0,0.07)" }}
-            >
-              <p style={{ fontSize: "clamp(8px,1.6vw,11px)", color: "#1c1c1c", fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {folder.name}
-              </p>
-              <p style={{ fontSize: "clamp(7px,1.1vw,9px)", color: "#aaa", marginTop: 2, letterSpacing: "0.08em" }}>
-                {folder.photos.length} foto{folder.photos.length !== 1 ? "s" : ""}
-              </p>
-            </div>
-            {/* Reflexo de brilho */}
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{ background: "linear-gradient(145deg,rgba(255,255,255,0.18) 0%,transparent 55%)" }}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ══════════════════════════════════════════════════════════════════
    PREMIUM PHOTO GALLERY
    · Abas de pastas no topo (Todas + cada pasta com fotos)
    · Filmstrip horizontal com altura total da área
@@ -801,12 +682,6 @@ function PremiumPhotoGallery({
   const [slideshow,     setSlideshow]     = useState(false)
   const [dlBusy,        setDlBusy]        = useState(false)
   const [dlProgress,    setDlProgress]    = useState<string | null>(null)
-  /* Vista de álbuns: ativa quando TODAS as fotos estão em pastas (nenhuma livre) */
-  const [albumView,     setAlbumView]     = useState(() => {
-    const hasFreePh   = gallery.photos.some(p => !p.folderId)
-    const hasFolderPh = gallery.folders.some(f => f.photos.length > 0)
-    return !hasFreePh && hasFolderPh
-  })
 
   /* Pastas que realmente têm fotos */
   const photoFolders = gallery.folders.filter(f => f.photos.length > 0)
@@ -838,22 +713,21 @@ function PremiumPhotoGallery({
     setLightboxIndex(null)
     setSlideshow(false)
     setActiveTab(tab)
-    setAlbumView(false)   // sempre sai da landing ao clicar em aba
   }
 
   return (
-    <div className="flex flex-col bg-[#080808]" style={{ height: "100svh" }}>
+    <div className="flex flex-col bg-white" style={{ height: "100svh" }}>
 
       {/* ── Tab bar ─────────────────────────────────────────────── */}
       <div
-        className="flex-shrink-0 flex items-stretch border-b border-white/8"
-        style={{ background: "rgba(8,8,8,0.97)", backdropFilter: "blur(20px)", minHeight: 52 }}
+        className="flex-shrink-0 flex items-stretch border-b border-black/8"
+        style={{ background: "#ffffff", minHeight: 52 }}
       >
         {/* Seta de voltar (para galerias com vídeos + fotos) */}
         {onBack && (
           <button
             onClick={onBack}
-            className="flex-shrink-0 flex items-center gap-1.5 px-5 text-white/35 hover:text-white/70 border-r border-white/8 transition-colors"
+            className="flex-shrink-0 flex items-center gap-1.5 px-5 text-black/35 hover:text-black/70 border-r border-black/8 transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" viewBox="0 0 24 24" strokeLinecap="round">
               <path d="M19 12H5M11 6l-6 6 6 6"/>
@@ -861,25 +735,13 @@ function PremiumPhotoGallery({
           </button>
         )}
 
-        {/* Abas de pasta — sempre visíveis; ativa = false quando na landing */}
+        {/* Abas de pasta */}
         <div className="flex-1 flex items-stretch overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-          {/* Botão "← Álbuns" — volta para a landing (só quando dentro de um álbum) */}
-          {!albumView && photoFolders.length > 0 && allPhotos.length === 0 && (
-            <button
-              onClick={() => { setAlbumView(true); setActiveTab(null) }}
-              className="flex-shrink-0 flex items-center gap-1.5 pl-4 pr-4 text-white/35 hover:text-white/70 border-r border-white/8 transition-colors"
-              title="Voltar para álbuns"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" viewBox="0 0 24 24" strokeLinecap="round">
-                <path d="M19 12H5M11 6l-6 6 6 6"/>
-              </svg>
-            </button>
-          )}
           {/* Aba "Todas" — só quando há fotos livres */}
           {allPhotos.length > 0 && (
             <TabBtn
               label="Todas"
-              active={!albumView && activeTab === null}
+              active={activeTab === null}
               primaryColor={primaryColor}
               onClick={() => handleTabChange(null)}
             />
@@ -889,16 +751,16 @@ function PremiumPhotoGallery({
             <TabBtn
               key={folder.id}
               label={folder.name}
-              active={!albumView && activeTab === folder.id}
+              active={activeTab === folder.id}
               primaryColor={primaryColor}
               onClick={() => handleTabChange(folder.id)}
             />
           ))}
         </div>
 
-        {/* Contador + Slideshow + Download — oculto na vista de álbuns */}
-        {!albumView && <div className="flex-shrink-0 flex items-center gap-2 px-4 border-l border-white/8">
-          <span className="hidden sm:block text-[11px] text-white/25 tabular-nums whitespace-nowrap">
+        {/* Contador + Slideshow + Download */}
+        <div className="flex-shrink-0 flex items-center gap-2 px-4 border-l border-black/8">
+          <span className="hidden sm:block text-[11px] text-black/30 tabular-nums whitespace-nowrap">
             {currentPhotos.length} foto{currentPhotos.length !== 1 ? "s" : ""}
           </span>
 
@@ -920,54 +782,33 @@ function PremiumPhotoGallery({
             onClick={handleDownloadAll}
             disabled={dlBusy || currentPhotos.length === 0}
             title={dlProgress ?? "Baixar todas as fotos (ZIP)"}
-            className="w-8 h-8 rounded-full border border-white/15 flex items-center justify-center text-white/40 hover:text-white hover:border-white/35 transition-all disabled:opacity-30"
+            className="w-8 h-8 rounded-full border border-black/15 flex items-center justify-center text-black/40 hover:text-black hover:border-black/35 transition-all disabled:opacity-30"
           >
             {dlBusy
               ? <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
               : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24" strokeLinecap="round"><path d="M12 3v13"/><path d="M8 12l4 4 4-4"/><path d="M3 19h18"/></svg>
             }
           </button>
-        </div>}
+        </div>
       </div>
 
       {/* Progress download */}
-      {!albumView && dlProgress && (
-        <div className="flex-shrink-0 px-4 py-1 text-[10px] text-white/30 bg-white/3 border-b border-white/6 tabular-nums">
+      {dlProgress && (
+        <div className="flex-shrink-0 px-4 py-1 text-[10px] text-black/30 bg-black/3 border-b border-black/6 tabular-nums">
           Compactando {dlProgress}…
         </div>
       )}
 
       {/* ── Grid vertical (masonry) — scroll independente da aba ── */}
-      <div className="flex-1 overflow-y-auto">
-      {albumView ? (
-        /* ── Landing premium: álbuns 3D ── */
-        <>
-          <style>{`@keyframes albumIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}`}</style>
-          {/* Título suave */}
-          <div className="flex flex-col items-center pt-10 pb-2 px-4" style={{ animation: "albumIn 0.4s ease both" }}>
-            <p className="text-white/18 text-[9px] tracking-[0.5em] uppercase mb-1">Suas memórias</p>
-            <p className="text-white/55 text-base font-light tracking-[0.12em]">{gallery.title}</p>
-          </div>
-          {/* Grade de álbuns 3D */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-8 sm:gap-10 px-8 sm:px-12 pb-12 pt-8">
-            {photoFolders.map((folder, i) => (
-              <AlbumBook3D
-                key={folder.id}
-                folder={folder}
-                index={i}
-                onClick={() => handleTabChange(folder.id)}
-              />
-            ))}
-          </div>
-        </>
-      ) : currentPhotos.length === 0 ? (
+      <div className="flex-1 overflow-y-auto bg-white">
+      {currentPhotos.length === 0 ? (
         <div className="flex items-center justify-center py-24">
-          <p className="text-white/20 text-sm tracking-widest">Nenhuma foto nesta pasta</p>
+          <p className="text-black/25 text-sm tracking-widest">Nenhuma foto nesta pasta</p>
         </div>
       ) : (
-        <div className="columns-2 sm:columns-3 lg:columns-4 gap-1 p-1">
+        <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 p-3">
           {currentPhotos.map((photo, i) => (
-            <div key={photo.id} className="break-inside-avoid mb-1">
+            <div key={photo.id} className="break-inside-avoid mb-3">
               <button
                 onClick={() => setLightboxIndex(i)}
                 className="relative w-full overflow-hidden group focus:outline-none"
@@ -1035,7 +876,7 @@ function TabBtn({
     <button
       onClick={onClick}
       className="relative flex-shrink-0 flex items-center px-5 text-[11px] tracking-[0.2em] uppercase font-medium transition-colors whitespace-nowrap"
-      style={{ color: active ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.3)" }}
+      style={{ color: active ? "rgba(0,0,0,0.85)" : "rgba(0,0,0,0.3)" }}
     >
       {label}
       {active && (
