@@ -662,6 +662,125 @@ function SlideshowOverlay({
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   ALBUM BOOK 3D
+   · Livro de foto físico em CSS 3D (perspective + rotateY/X)
+   · Fotos ciclam automaticamente dentro do álbum
+   · Hover abre levemente o livro para mostrar profundidade
+══════════════════════════════════════════════════════════════════ */
+function AlbumBook3D({
+  folder,
+  index,
+  onClick,
+}: {
+  folder: FolderWithItems
+  index: number
+  onClick: () => void
+}) {
+  const [photoIdx, setPhotoIdx] = useState(0)
+  const [hovered,  setHovered]  = useState(false)
+  const sliced = folder.photos.slice(0, 6)
+
+  useEffect(() => {
+    if (sliced.length <= 1) return
+    const t = setInterval(() => setPhotoIdx(i => (i + 1) % sliced.length), 2800)
+    return () => clearInterval(t)
+  }, [sliced.length])
+
+  return (
+    <div
+      className="flex flex-col items-center gap-3 cursor-pointer select-none"
+      style={{ animation: "albumIn 0.55s ease both", animationDelay: `${index * 110}ms` }}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Perspectiva 3D */}
+      <div className="relative w-full" style={{ perspective: "900px", aspectRatio: "3/4" }}>
+        <div
+          className="absolute inset-0 transition-transform duration-500"
+          style={{
+            transformStyle: "preserve-3d",
+            transform: hovered
+              ? "rotateY(-10deg) rotateX(3deg) scale(1.03)"
+              : "rotateY(-22deg) rotateX(6deg)",
+          }}
+        >
+          {/* Face traseira — gera sombra de profundidade */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: "linear-gradient(160deg,#e5e5e5,#cccccc)",
+              transform: "translateZ(-16px)",
+              boxShadow: hovered
+                ? "14px 32px 80px rgba(0,0,0,0.82)"
+                : "8px 22px 60px rgba(0,0,0,0.65)",
+              transition: "box-shadow 0.5s ease",
+            }}
+          />
+          {/* Miolo das páginas (borda direita) */}
+          <div
+            className="absolute"
+            style={{
+              top: "2%", bottom: "2%", right: 0, width: 16,
+              background: "linear-gradient(to right,#aaa,#ddd,#f2f2f2)",
+              transform: "rotateY(90deg)",
+              transformOrigin: "right center",
+            }}
+          />
+          {/* Lombada (borda esquerda) */}
+          <div
+            className="absolute"
+            style={{
+              top: 0, bottom: 0, left: 0, width: 12,
+              background: "linear-gradient(to left,#d0d0d0,#adadad)",
+              transform: "rotateY(-90deg)",
+              transformOrigin: "left center",
+            }}
+          />
+          {/* Capa frontal branca */}
+          <div className="absolute inset-0" style={{ background: "white" }}>
+            {/* Área de fotos ciclando */}
+            <div
+              className="absolute overflow-hidden"
+              style={{ top: "7%", left: "7%", right: "7%", bottom: "22%" }}
+            >
+              {sliced.map((photo, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={photo.id}
+                  src={photoThumbUrl(photo.url, 500, 78)}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover"
+                  style={{ opacity: i === photoIdx ? 1 : 0, transition: "opacity 1.2s ease" }}
+                  loading="eager"
+                />
+              ))}
+            </div>
+            {/* Faixa inferior com nome */}
+            <div
+              className="absolute bottom-0 left-0 right-0 flex flex-col justify-center"
+              style={{ height: "22%", padding: "0 8%", borderTop: "1px solid rgba(0,0,0,0.07)" }}
+            >
+              <p style={{ fontSize: "clamp(8px,1.6vw,11px)", color: "#1c1c1c", fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {folder.name}
+              </p>
+              <p style={{ fontSize: "clamp(7px,1.1vw,9px)", color: "#aaa", marginTop: 2, letterSpacing: "0.08em" }}>
+                {folder.photos.length} foto{folder.photos.length !== 1 ? "s" : ""}
+              </p>
+            </div>
+            {/* Reflexo de brilho */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{ background: "linear-gradient(145deg,rgba(255,255,255,0.18) 0%,transparent 55%)" }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════════════════════
    PREMIUM PHOTO GALLERY
    · Abas de pastas no topo (Todas + cada pasta com fotos)
    · Filmstrip horizontal com altura total da área
@@ -719,6 +838,7 @@ function PremiumPhotoGallery({
     setLightboxIndex(null)
     setSlideshow(false)
     setActiveTab(tab)
+    setAlbumView(false)   // sempre sai da landing ao clicar em aba
   }
 
   return (
@@ -741,48 +861,39 @@ function PremiumPhotoGallery({
           </button>
         )}
 
-        {/* Abas de pasta */}
+        {/* Abas de pasta — sempre visíveis; ativa = false quando na landing */}
         <div className="flex-1 flex items-stretch overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-          {albumView ? (
-            /* Vista de álbuns: mostra apenas o título */
-            <div className="flex items-center px-5">
-              <span className="text-white/35 text-xs tracking-[0.3em] uppercase">Álbuns</span>
-            </div>
-          ) : (
-            <>
-              {/* Botão "← Álbuns" — só aparece quando todas as fotos estão em pastas */}
-              {photoFolders.length > 0 && allPhotos.length === 0 && (
-                <button
-                  onClick={() => setAlbumView(true)}
-                  className="flex-shrink-0 flex items-center gap-1.5 pl-4 pr-3 text-white/35 hover:text-white/70 border-r border-white/8 transition-colors text-[11px] tracking-widest uppercase"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="1.4" viewBox="0 0 24 24" strokeLinecap="round">
-                    <path d="M19 12H5M11 6l-6 6 6 6"/>
-                  </svg>
-                  Álbuns
-                </button>
-              )}
-              {/* Aba "Todas" — só aparece quando há fotos fora de pastas */}
-              {allPhotos.length > 0 && (
-                <TabBtn
-                  label="Todas"
-                  active={activeTab === null}
-                  primaryColor={primaryColor}
-                  onClick={() => handleTabChange(null)}
-                />
-              )}
-              {/* Uma aba por pasta que tem fotos */}
-              {photoFolders.map(folder => (
-                <TabBtn
-                  key={folder.id}
-                  label={folder.name}
-                  active={activeTab === folder.id}
-                  primaryColor={primaryColor}
-                  onClick={() => handleTabChange(folder.id)}
-                />
-              ))}
-            </>
+          {/* Botão "← Álbuns" — volta para a landing (só quando dentro de um álbum) */}
+          {!albumView && photoFolders.length > 0 && allPhotos.length === 0 && (
+            <button
+              onClick={() => { setAlbumView(true); setActiveTab(null) }}
+              className="flex-shrink-0 flex items-center gap-1.5 pl-4 pr-4 text-white/35 hover:text-white/70 border-r border-white/8 transition-colors"
+              title="Voltar para álbuns"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" viewBox="0 0 24 24" strokeLinecap="round">
+                <path d="M19 12H5M11 6l-6 6 6 6"/>
+              </svg>
+            </button>
           )}
+          {/* Aba "Todas" — só quando há fotos livres */}
+          {allPhotos.length > 0 && (
+            <TabBtn
+              label="Todas"
+              active={!albumView && activeTab === null}
+              primaryColor={primaryColor}
+              onClick={() => handleTabChange(null)}
+            />
+          )}
+          {/* Uma aba por pasta com fotos */}
+          {photoFolders.map(folder => (
+            <TabBtn
+              key={folder.id}
+              label={folder.name}
+              active={!albumView && activeTab === folder.id}
+              primaryColor={primaryColor}
+              onClick={() => handleTabChange(folder.id)}
+            />
+          ))}
         </div>
 
         {/* Contador + Slideshow + Download — oculto na vista de álbuns */}
@@ -829,34 +940,23 @@ function PremiumPhotoGallery({
       {/* ── Grid vertical (masonry) — scroll independente da aba ── */}
       <div className="flex-1 overflow-y-auto">
       {albumView ? (
-        /* ── Vista de álbuns: grade de pastas com capa ── */
+        /* ── Landing premium: álbuns 3D ── */
         <>
-          <style>{`@keyframes albumIn{from{opacity:0;transform:scale(0.95) translateY(10px)}to{opacity:1;transform:none}}`}</style>
-          <div className="px-5 pt-8 pb-3">
-            <p className="text-white/20 text-[10px] tracking-[0.4em] uppercase">Selecione um álbum</p>
+          <style>{`@keyframes albumIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}`}</style>
+          {/* Título suave */}
+          <div className="flex flex-col items-center pt-10 pb-2 px-4" style={{ animation: "albumIn 0.4s ease both" }}>
+            <p className="text-white/18 text-[9px] tracking-[0.5em] uppercase mb-1">Suas memórias</p>
+            <p className="text-white/55 text-base font-light tracking-[0.12em]">{gallery.title}</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 px-4 pb-8">
+          {/* Grade de álbuns 3D */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-8 sm:gap-10 px-8 sm:px-12 pb-12 pt-8">
             {photoFolders.map((folder, i) => (
-              <button
+              <AlbumBook3D
                 key={folder.id}
-                onClick={() => { setAlbumView(false); handleTabChange(folder.id) }}
-                className="group relative overflow-hidden rounded-sm focus:outline-none"
-                style={{ aspectRatio: "4/3", animation: `albumIn 0.45s ease both`, animationDelay: `${i * 70}ms` }}
-              >
-                {folder.photos[0] && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={photoThumbUrl(folder.photos[0].url, 600, 75)}
-                    alt=""
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 p-3">
-                  <p className="text-white text-sm font-medium tracking-wide truncate leading-tight">{folder.name}</p>
-                  <p className="text-white/40 text-[11px] mt-0.5">{folder.photos.length} foto{folder.photos.length !== 1 ? "s" : ""}</p>
-                </div>
-              </button>
+                folder={folder}
+                index={i}
+                onClick={() => handleTabChange(folder.id)}
+              />
             ))}
           </div>
         </>
