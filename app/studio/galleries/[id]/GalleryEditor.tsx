@@ -8,7 +8,7 @@ import { FONT_MAP } from "@/app/g/[slug]/GalleryViewer"
 
 type FolderWithItems = Folder & { videos: Video[]; photos: Photo[] }
 type GalleryWithAll = Gallery & { videos: Video[]; photos: Photo[]; folders: FolderWithItems[] }
-type Section = "upload" | "link" | "heading" | "background" | "music" | "styles" | "settings" | "deliver"
+type Section = "upload" | "link" | "photos" | "heading" | "background" | "music" | "styles" | "settings" | "deliver"
 
 const LAYOUTS = [
   {
@@ -147,6 +147,9 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
   const [password, setPassword] = useState(gallery.password || "")
   const [slug, setSlug] = useState(gallery.slug)
   const [settingsSaved, setSettingsSaved] = useState(false)
+
+  // Photos tab state
+  const [photoFolderOpenId, setPhotoFolderOpenId] = useState<string | null>(null)
 
   // Folders state
   const [folders, setFolders] = useState<FolderWithItems[]>(gallery.folders ?? [])
@@ -601,6 +604,15 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     if (res.ok) setPhotos(p => p.filter(x => x.id !== photoId))
   }
 
+  const assignPhotoToFolder = async (photoId: string, folderId: string | null) => {
+    await fetch(`/api/galleries/${gallery.id}/folders/assign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "photo", itemId: photoId, folderId }),
+    })
+    setPhotos(prev => prev.map(p => p.id === photoId ? { ...p, folderId } : p))
+  }
+
   /* ── Regenera thumbnails de todas as fotos com nova compressão ──
      Útil para fotos já enviadas antes de reduzirmos o tamanho.
      Baixa cada original, comprime a 480px/28% e re-sobe.
@@ -708,6 +720,12 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
               <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
               <polygon points="10 8 16 10.5 10 13" fill="currentColor" stroke="none" opacity="0.7"/>
+            </svg>} />
+          {/* Fotos */}
+          <NavItem active={section === "photos"} onClick={() => setSection("photos")} label="Fotos"
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
             </svg>} />
           {/* Título */}
           <NavItem active={section === "heading"} onClick={() => setSection("heading")} label="Título"
@@ -828,15 +846,6 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                   <button onClick={() => setUploadError("")} className="text-[10px] text-red-400/60 mt-1 hover:text-red-400">Fechar</button>
                 </div>
               )}
-
-              <SectionTitle>Upload de Fotos</SectionTitle>
-              <button onClick={() => photoFileRef.current?.click()}
-                className="w-full py-6 border border-dashed border-white/15 rounded-lg text-white/30 hover:text-white/50 hover:border-white/25 transition-all text-xs tracking-wider flex flex-col items-center gap-2 mb-5">
-                <svg className="w-6 h-6 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-                </svg>
-                <span>Upload de fotos (múltiplas)</span>
-              </button>
 
               {/* Main video list (excludes folder videos) */}
               {videos.filter(v => !v.folderId).length > 0 && (
@@ -968,49 +977,6 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                             </button>
                           </div>
                         )}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {/* Photo grid */}
-              {photos.length > 0 && (
-                <>
-                  <div className="flex items-center justify-between mt-4 mb-3">
-                    <SectionTitle className="!mb-0">Fotos ({photos.length})</SectionTitle>
-                    {/* Regenerate thumbnails button */}
-                    <button
-                      onClick={regenerateThumbnails}
-                      disabled={!!regenProgress}
-                      title="Reprocessa todas as fotos com miniaturas menores e mais rápidas"
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] tracking-wider uppercase border border-white/10 text-white/40 hover:text-white/70 hover:border-white/20 transition-all disabled:opacity-40 disabled:cursor-wait"
-                    >
-                      {regenProgress ? (
-                        <>
-                          <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                          {regenProgress.done}/{regenProgress.total}
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-                          </svg>
-                          Regenerar miniaturas
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {photos.map(p => (
-                      <div key={p.id} className="relative group aspect-square rounded overflow-hidden bg-white/5">
-                        <img src={p.thumbnailUrl ?? p.url} className="w-full h-full object-cover" alt="" />
-                        <button onClick={() => deletePhoto(p.id)}
-                          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                          <svg className="w-4 h-4 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                            <path d="M18 6L6 18M6 6l12 12"/>
-                          </svg>
-                        </button>
                       </div>
                     ))}
                   </div>
@@ -1365,6 +1331,186 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* PHOTOS */}
+          {section === "photos" && (
+            <div>
+              <SectionTitle>Upload de Fotos</SectionTitle>
+              <button onClick={() => photoFileRef.current?.click()}
+                className="w-full py-6 border border-dashed border-white/15 rounded-lg text-white/30 hover:text-white/50 hover:border-white/25 transition-all text-xs tracking-wider flex flex-col items-center gap-2 mb-5">
+                <svg className="w-6 h-6 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                </svg>
+                <span>Upload de fotos (múltiplas)</span>
+              </button>
+
+              {/* Fotos não atribuídas */}
+              {photos.filter(p => !p.folderId).length > 0 && (
+                <>
+                  <div className="flex items-center justify-between mt-4 mb-3">
+                    <SectionTitle className="!mb-0">Fotos livres ({photos.filter(p => !p.folderId).length})</SectionTitle>
+                    <button
+                      onClick={regenerateThumbnails}
+                      disabled={!!regenProgress}
+                      title="Reprocessa todas as fotos com miniaturas menores e mais rápidas"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] tracking-wider uppercase border border-white/10 text-white/40 hover:text-white/70 hover:border-white/20 transition-all disabled:opacity-40 disabled:cursor-wait"
+                    >
+                      {regenProgress ? (
+                        <>
+                          <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                          {regenProgress.done}/{regenProgress.total}
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                          </svg>
+                          Regenerar
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {photos.filter(p => !p.folderId).map(p => (
+                      <div key={p.id} className="relative group aspect-square rounded overflow-hidden bg-white/5">
+                        <img src={p.thumbnailUrl ?? p.url} className="w-full h-full object-cover" alt="" />
+                        <button onClick={() => deletePhoto(p.id)}
+                          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <svg className="w-4 h-4 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Pastas de Fotos */}
+              <div className="mt-6 pt-5 border-t border-white/8">
+                <SectionTitle>Pastas de Fotos</SectionTitle>
+                <p className="text-white/25 text-[11px] font-light mb-4 leading-relaxed">
+                  Organize as fotos em pastas — cada pasta vira uma aba na galeria do cliente.
+                </p>
+
+                {/* Criar pasta */}
+                <div className="flex gap-2 mb-4">
+                  <input
+                    value={newFolderName}
+                    onChange={e => setNewFolderName(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && createFolder()}
+                    placeholder="Nome da pasta…"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/25 focus:outline-none focus:border-[#C9A84C]/40"
+                  />
+                  <button
+                    onClick={createFolder}
+                    disabled={creatingFolder || !newFolderName.trim()}
+                    className="px-3 py-2 rounded-lg bg-[#C9A84C]/10 hover:bg-[#C9A84C]/20 border border-[#C9A84C]/20 text-[#C9A84C] transition-all text-xs disabled:opacity-40"
+                    title="Criar pasta"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                  </button>
+                </div>
+
+                {folders.length === 0 && (
+                  <div className="text-center py-6 text-white/20 text-xs">
+                    <svg className="w-8 h-8 mx-auto mb-2 opacity-20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                    <p>Nenhuma pasta criada ainda</p>
+                  </div>
+                )}
+
+                {folders.map(folder => {
+                  const folderPhotos = photos.filter(p => p.folderId === folder.id)
+                  const freePhotos   = photos.filter(p => !p.folderId)
+                  const isOpen       = photoFolderOpenId === folder.id
+                  return (
+                    <div key={folder.id} className="mb-3 rounded-lg border border-white/8 overflow-hidden">
+                      {/* Cabeçalho da pasta */}
+                      <div className="flex items-center justify-between px-3 py-2.5 bg-white/5">
+                        {renamingFolderId === folder.id ? (
+                          <input
+                            value={renamingName}
+                            onChange={e => setRenamingName(e.target.value)}
+                            onKeyDown={e => { if (e.key === "Enter") renameFolder(folder.id); if (e.key === "Escape") setRenamingFolderId(null) }}
+                            onBlur={() => renameFolder(folder.id)}
+                            autoFocus
+                            className="flex-1 bg-transparent text-xs text-white border-b border-white/30 focus:outline-none mr-2"
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <svg className="w-3.5 h-3.5 text-[#C9A84C]/60 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                            <span className="text-xs text-white/80 truncate">{folder.name}</span>
+                            <span className="text-[10px] text-white/25 flex-shrink-0 ml-1">
+                              {folderPhotos.length} foto{folderPhotos.length !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                          <button
+                            onClick={() => { setRenamingFolderId(folder.id); setRenamingName(folder.name) }}
+                            className="p-1 text-white/25 hover:text-white/60 transition-colors"
+                            title="Renomear"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          </button>
+                          <button
+                            onClick={() => deleteFolder(folder.id)}
+                            className="p-1 text-white/25 hover:text-red-400 transition-colors"
+                            title="Remover pasta"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 6h18M19 6l-1 14H6L5 6M10 6V4h4v2"/></svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Fotos já atribuídas */}
+                      {folderPhotos.length > 0 && (
+                        <div className="grid grid-cols-4 gap-1 p-2 bg-black/10">
+                          {folderPhotos.map(p => (
+                            <div key={p.id} className="relative group aspect-square rounded overflow-hidden bg-white/5">
+                              <img src={p.thumbnailUrl ?? p.url} className="w-full h-full object-cover" alt="" />
+                              <button
+                                onClick={() => assignPhotoToFolder(p.id, null)}
+                                className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Remover da pasta"
+                              >
+                                <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Botão para adicionar fotos livres */}
+                      <div className="px-3 pb-2.5 pt-2">
+                        <button
+                          onClick={() => setPhotoFolderOpenId(isOpen ? null : folder.id)}
+                          disabled={!isOpen && freePhotos.length === 0}
+                          className="w-full py-1.5 border border-dashed border-white/15 hover:border-[#C9A84C]/40 hover:text-[#C9A84C]/60 rounded text-[10px] text-white/30 transition-all flex items-center justify-center gap-1.5 disabled:opacity-30"
+                        >
+                          {isOpen ? "Fechar" : `+ Adicionar fotos (${freePhotos.length} disponíveis)`}
+                        </button>
+                        {isOpen && freePhotos.length > 0 && (
+                          <div className="grid grid-cols-4 gap-1 mt-2">
+                            {freePhotos.map(p => (
+                              <button
+                                key={p.id}
+                                onClick={() => assignPhotoToFolder(p.id, folder.id)}
+                                className="relative aspect-square rounded overflow-hidden bg-white/5 hover:ring-2 hover:ring-[#C9A84C]/60 transition-all"
+                                title="Adicionar a esta pasta"
+                              >
+                                <img src={p.thumbnailUrl ?? p.url} className="w-full h-full object-cover" alt="" />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
 
@@ -1734,13 +1880,15 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
               <iframe
                 key={previewKey}
                 src={`/g/${slug}`}
-                className="w-full h-full border-0 pointer-events-none"
+                className="w-full h-full border-0"
                 style={{ transform: "scale(0.95)", transformOrigin: "center center" }}
                 title="Preview"
               />
               {!published && (
-                <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-                  <p className="text-white/40 text-xs tracking-widest uppercase">Publique para ver o preview</p>
+                <div className="absolute top-2 left-0 right-0 flex justify-center pointer-events-none">
+                  <p className="px-3 py-1 rounded-full bg-black/80 text-white/40 text-[10px] tracking-widest uppercase border border-white/10">
+                    Não publicada — cliente ainda não acessa
+                  </p>
                 </div>
               )}
             </div>
