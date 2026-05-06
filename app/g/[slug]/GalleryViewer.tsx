@@ -521,8 +521,378 @@ const IconBtn = ({ onClick, title, children, active }: { onClick?: () => void; t
   </button>
 )
 
+/* ══════════════════════════════════════════════════════════════════
+   SLIDESHOW OVERLAY
+   · Full-screen automático com cross-fade
+   · Barra de progresso animada
+   · Pausável com espaço / botão
+══════════════════════════════════════════════════════════════════ */
+function SlideshowOverlay({
+  photos,
+  initialIndex = 0,
+  interval = 4500,
+  onClose,
+}: {
+  photos: Photo[]
+  initialIndex?: number
+  interval?: number
+  onClose: () => void
+}) {
+  const [current, setCurrent] = useState(initialIndex)
+  const [paused, setPaused]   = useState(false)
+  const [loaded,  setLoaded]  = useState(false)
+  const [key,     setKey]     = useState(0)   // para resetar a barra de progresso
+
+  const goTo = useCallback((idx: number) => {
+    setLoaded(false)
+    setKey(k => k + 1)
+    setCurrent((idx + photos.length) % photos.length)
+  }, [photos.length])
+
+  /* Auto-advance */
+  useEffect(() => {
+    if (paused || photos.length <= 1) return
+    const t = setTimeout(() => goTo(current + 1), interval)
+    return () => clearTimeout(t)
+  }, [current, paused, photos.length, interval, goTo])
+
+  /* Keyboard */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape")      onClose()
+      if (e.key === "ArrowLeft")   goTo(current - 1)
+      if (e.key === "ArrowRight")  goTo(current + 1)
+      if (e.key === " ")           { e.preventDefault(); setPaused(p => !p) }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose, current, goTo])
+
+  /* Lock scroll */
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  const photo = photos[current]
+
+  return (
+    <div className="fixed inset-0 z-[300] bg-black flex flex-col select-none">
+      {/* CSS keyframe para a barra de progresso */}
+      <style>{`@keyframes ssProgress{from{transform:scaleX(0)}to{transform:scaleX(1)}}`}</style>
+
+      {/* Top gradient + controls */}
+      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-6 pt-5 pb-16"
+        style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.75), transparent)" }}>
+        <p className="text-[11px] text-white/40 tabular-nums tracking-widest">
+          {current + 1} <span className="text-white/20">/</span> {photos.length}
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setPaused(p => !p)}
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-white/20 text-white/60 hover:text-white text-[10px] tracking-widest uppercase transition-all"
+          >
+            {paused
+              ? <><svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21"/></svg><span>Play</span></>
+              : <><svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg><span>Pausa</span></>
+            }
+          </button>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center text-white/50 hover:text-white transition-all"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24" strokeLinecap="round">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Image */}
+      <div className="flex-1 relative flex items-center justify-center min-h-0">
+        {!loaded && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full border border-white/10 animate-pulse" />
+          </div>
+        )}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          key={photo.id}
+          src={photo.url}
+          alt={photo.caption || ""}
+          onLoad={() => setLoaded(true)}
+          className="max-h-full max-w-full object-contain transition-opacity duration-700"
+          style={{ opacity: loaded ? 1 : 0 }}
+          draggable={false}
+        />
+
+        {/* Prev / Next */}
+        {photos.length > 1 && (<>
+          <button onClick={() => goTo(current - 1)}
+            className="absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 border border-white/15 hover:border-white/35 hover:bg-black/70 flex items-center justify-center text-white/60 hover:text-white transition-all z-10">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24" strokeLinecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <button onClick={() => goTo(current + 1)}
+            className="absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 border border-white/15 hover:border-white/35 hover:bg-black/70 flex items-center justify-center text-white/60 hover:text-white transition-all z-10">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </>)}
+      </div>
+
+      {/* Progress bar */}
+      {!paused && photos.length > 1 && (
+        <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/8 z-20">
+          <div
+            key={key}
+            className="h-full bg-white/50 origin-left"
+            style={{ animation: `ssProgress ${interval}ms linear forwards` }}
+          />
+        </div>
+      )}
+
+      {/* Caption */}
+      {photo.caption && (
+        <div className="absolute bottom-4 left-0 right-0 text-center z-20">
+          <p className="text-xs text-white/40 font-light">{photo.caption}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   PREMIUM PHOTO GALLERY
+   · Abas de pastas no topo (Todas + cada pasta com fotos)
+   · Filmstrip horizontal com altura total da área
+   · Slideshow e download embutidos
+   · Clique abre lightbox full-screen
+══════════════════════════════════════════════════════════════════ */
+function PremiumPhotoGallery({
+  gallery,
+  primaryColor,
+  onBack,
+}: {
+  gallery: GalleryWithAll
+  primaryColor: string
+  onBack?: () => void
+}) {
+  const [activeTab,     setActiveTab]     = useState<string | null>(null) // null = "Todas"
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const [slideshow,     setSlideshow]     = useState(false)
+  const [dlBusy,        setDlBusy]        = useState(false)
+  const [dlProgress,    setDlProgress]    = useState<string | null>(null)
+
+  /* Pastas que realmente têm fotos */
+  const photoFolders = gallery.folders.filter(f => f.photos.length > 0)
+
+  /* Fotos combinadas para a aba "Todas" */
+  const allPhotos: Photo[] = [
+    ...gallery.photos,
+    ...gallery.folders.flatMap(f => f.photos),
+  ]
+
+  /* Fotos da aba activa */
+  const currentPhotos: Photo[] = activeTab === null
+    ? allPhotos
+    : (gallery.folders.find(f => f.id === activeTab)?.photos ?? [])
+
+  const handleDownloadAll = async () => {
+    if (dlBusy) return
+    setDlBusy(true)
+    setDlProgress("Iniciando…")
+    try {
+      await downloadAllPhotos(currentPhotos, gallery.title, setDlProgress)
+    } catch {
+      alert("Erro ao gerar o ZIP. Tente novamente.")
+    } finally {
+      setDlBusy(false)
+      setDlProgress(null)
+    }
+  }
+
+  /* Quando troca de aba, fecha lightbox/slideshow */
+  const handleTabChange = (tab: string | null) => {
+    setLightboxIndex(null)
+    setSlideshow(false)
+    setActiveTab(tab)
+  }
+
+  return (
+    <div className="flex flex-col" style={{ height: "100svh" }}>
+
+      {/* ── Tab bar ─────────────────────────────────────────────── */}
+      <div
+        className="flex-shrink-0 flex items-stretch border-b border-white/8"
+        style={{ background: "rgba(8,8,8,0.97)", backdropFilter: "blur(20px)", minHeight: 52 }}
+      >
+        {/* Seta de voltar (para galerias com vídeos + fotos) */}
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="flex-shrink-0 flex items-center gap-1.5 px-5 text-white/35 hover:text-white/70 border-r border-white/8 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" viewBox="0 0 24 24" strokeLinecap="round">
+              <path d="M19 12H5M11 6l-6 6 6 6"/>
+            </svg>
+          </button>
+        )}
+
+        {/* Abas de pasta */}
+        <div className="flex-1 flex items-stretch overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          {/* Aba "Todas" */}
+          <TabBtn
+            label="Todas"
+            active={activeTab === null}
+            primaryColor={primaryColor}
+            onClick={() => handleTabChange(null)}
+          />
+          {/* Uma aba por pasta que tem fotos */}
+          {photoFolders.map(folder => (
+            <TabBtn
+              key={folder.id}
+              label={folder.name}
+              active={activeTab === folder.id}
+              primaryColor={primaryColor}
+              onClick={() => handleTabChange(folder.id)}
+            />
+          ))}
+        </div>
+
+        {/* Contador + Slideshow + Download */}
+        <div className="flex-shrink-0 flex items-center gap-2 px-4 border-l border-white/8">
+          <span className="hidden sm:block text-[11px] text-white/25 tabular-nums whitespace-nowrap">
+            {currentPhotos.length} foto{currentPhotos.length !== 1 ? "s" : ""}
+          </span>
+
+          {/* Slideshow */}
+          <button
+            onClick={() => setSlideshow(true)}
+            disabled={currentPhotos.length === 0}
+            className="flex items-center gap-2 px-3.5 py-2 text-[10px] tracking-widest uppercase font-semibold rounded-sm transition-all disabled:opacity-30 whitespace-nowrap"
+            style={{ background: primaryColor, color: "#000" }}
+          >
+            <svg className="w-2.5 h-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21"/>
+            </svg>
+            <span className="hidden sm:inline">Slideshow</span>
+          </button>
+
+          {/* Download todas */}
+          <button
+            onClick={handleDownloadAll}
+            disabled={dlBusy || currentPhotos.length === 0}
+            title={dlProgress ?? "Baixar todas as fotos (ZIP)"}
+            className="w-8 h-8 rounded-full border border-white/15 flex items-center justify-center text-white/40 hover:text-white hover:border-white/35 transition-all disabled:opacity-30"
+          >
+            {dlBusy
+              ? <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+              : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24" strokeLinecap="round"><path d="M12 3v13"/><path d="M8 12l4 4 4-4"/><path d="M3 19h18"/></svg>
+            }
+          </button>
+        </div>
+      </div>
+
+      {/* Progress download */}
+      {dlProgress && (
+        <div className="flex-shrink-0 px-4 py-1 text-[10px] text-white/30 bg-white/3 border-b border-white/6 tabular-nums">
+          Compactando {dlProgress}…
+        </div>
+      )}
+
+      {/* ── Filmstrip horizontal ─────────────────────────────────── */}
+      {currentPhotos.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center bg-[#080808]">
+          <p className="text-white/20 text-sm tracking-widest">Nenhuma foto nesta pasta</p>
+        </div>
+      ) : (
+        <div
+          className="flex-1 flex gap-px bg-black overflow-x-auto overflow-y-hidden"
+          style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.08) transparent" }}
+        >
+          {currentPhotos.map((photo, i) => (
+            <button
+              key={photo.id}
+              onClick={() => setLightboxIndex(i)}
+              className="relative flex-shrink-0 h-full overflow-hidden group focus:outline-none"
+              title={photo.caption || undefined}
+              style={{ cursor: "zoom-in" }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photoThumbUrl(photo.url, 1200, 88)}
+                alt={photo.caption || ""}
+                loading={i < 20 ? "eager" : "lazy"}
+                decoding="async"
+                fetchPriority={i < 10 ? "high" : "auto"}
+                className="h-full w-auto object-cover select-none"
+                draggable={false}
+                style={{ display: "block", maxWidth: "none" }}
+              />
+              {/* Hover escurecer levemente */}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors duration-200" />
+              {/* Caption no hover */}
+              {photo.caption && (
+                <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75), transparent)" }}>
+                  <p className="text-[10px] text-white/80 truncate">{photo.caption}</p>
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightboxIndex !== null && (
+        <PhotoLightbox
+          photos={currentPhotos}
+          initialIndex={lightboxIndex}
+          galleryId={gallery.id}
+          galleryTitle={gallery.title}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
+
+      {/* Slideshow */}
+      {slideshow && currentPhotos.length > 0 && (
+        <SlideshowOverlay
+          photos={currentPhotos}
+          onClose={() => setSlideshow(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ── Tab button helper ───────────────────────────────────────────── */
+function TabBtn({
+  label, active, primaryColor, onClick,
+}: {
+  label: string
+  active: boolean
+  primaryColor: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="relative flex-shrink-0 flex items-center px-5 text-[11px] tracking-[0.2em] uppercase font-medium transition-colors whitespace-nowrap"
+      style={{ color: active ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.3)" }}
+    >
+      {label}
+      {active && (
+        <span
+          className="absolute bottom-0 left-0 right-0 h-[2px]"
+          style={{ background: primaryColor }}
+        />
+      )}
+    </button>
+  )
+}
+
 /* ── Photos section with lightbox wiring ─────────────────────────
-   Reused inside all 3 layouts.
+   Versão compacta para o layout Cinema (sidebar em grid 2 colunas).
    ─────────────────────────────────────────────────────────────── */
 function PhotosSection({
   photos,
@@ -910,15 +1280,15 @@ function LayoutGatsby({ gallery, primaryColor, fontFamily }: { gallery: GalleryW
           )
         )}
 
-        {/* ── PHOTOS ─────────────────────────────────────────── */}
-        {view === "photos" && gallery.photos.length > 0 && (
-          <section className="pt-4 px-1">
-            <PhotosSection
-              photos={gallery.photos}
-              galleryId={gallery.id}
-              galleryTitle={gallery.title}
+        {/* ── PHOTOS — fullscreen premium gallery com abas de pasta ── */}
+        {view === "photos" && (
+          <div className="fixed inset-0 z-40">
+            <PremiumPhotoGallery
+              gallery={gallery}
+              primaryColor={primaryColor}
+              onBack={() => setView("videos")}
             />
-          </section>
+          </div>
         )}
 
         {/* ── FOOTER ─────────────────────────────────────────── */}
@@ -1079,12 +1449,13 @@ function LayoutEditorial({ gallery, primaryColor, fontFamily }: { gallery: Galle
         </>
       )}
 
-      {view === "photos" && gallery.photos.length > 0 && (
-        <div className="p-2 pt-4">
-          <PhotosSection
-            photos={gallery.photos}
-            galleryId={gallery.id}
-            galleryTitle={gallery.title}
+      {/* PHOTOS — fullscreen premium gallery com abas de pasta */}
+      {view === "photos" && (
+        <div className="fixed inset-0 z-50">
+          <PremiumPhotoGallery
+            gallery={gallery}
+            primaryColor={primaryColor}
+            onBack={() => setView("videos")}
           />
         </div>
       )}
@@ -1237,15 +1608,25 @@ function LayoutCinema({ gallery, primaryColor, fontFamily }: { gallery: GalleryW
             </div>
           </div>
         ) : view === "photos" ? (
-          <div className="w-full h-full overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.1) transparent" }}>
-            {/* Full-screen photos handled by PhotosSection's own lightbox */}
-          </div>
+          /* placeholder — PremiumPhotoGallery renderiza sobre o layout inteiro */
+          <div className="w-full h-full bg-black" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <h1 className="text-5xl font-light text-white/20" style={{ fontFamily }}>{gallery.title}</h1>
           </div>
         )}
       </div>
+
+      {/* PHOTOS — fullscreen premium gallery com abas de pasta (cobre sidebar + player) */}
+      {view === "photos" && (
+        <div className="absolute inset-0 z-50">
+          <PremiumPhotoGallery
+            gallery={gallery}
+            primaryColor={primaryColor}
+            onBack={() => setView("videos")}
+          />
+        </div>
+      )}
     </div>
   )
 }
