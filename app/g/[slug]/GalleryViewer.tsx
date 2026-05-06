@@ -682,6 +682,12 @@ function PremiumPhotoGallery({
   const [slideshow,     setSlideshow]     = useState(false)
   const [dlBusy,        setDlBusy]        = useState(false)
   const [dlProgress,    setDlProgress]    = useState<string | null>(null)
+  /* Vista de álbuns: ativa quando TODAS as fotos estão em pastas (nenhuma livre) */
+  const [albumView,     setAlbumView]     = useState(() => {
+    const hasFreePh   = gallery.photos.some(p => !p.folderId)
+    const hasFolderPh = gallery.folders.some(f => f.photos.length > 0)
+    return !hasFreePh && hasFolderPh
+  })
 
   /* Pastas que realmente têm fotos */
   const photoFolders = gallery.folders.filter(f => f.photos.length > 0)
@@ -737,27 +743,50 @@ function PremiumPhotoGallery({
 
         {/* Abas de pasta */}
         <div className="flex-1 flex items-stretch overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-          {/* Aba "Todas" */}
-          <TabBtn
-            label="Todas"
-            active={activeTab === null}
-            primaryColor={primaryColor}
-            onClick={() => handleTabChange(null)}
-          />
-          {/* Uma aba por pasta que tem fotos */}
-          {photoFolders.map(folder => (
-            <TabBtn
-              key={folder.id}
-              label={folder.name}
-              active={activeTab === folder.id}
-              primaryColor={primaryColor}
-              onClick={() => handleTabChange(folder.id)}
-            />
-          ))}
+          {albumView ? (
+            /* Vista de álbuns: mostra apenas o título */
+            <div className="flex items-center px-5">
+              <span className="text-white/35 text-xs tracking-[0.3em] uppercase">Álbuns</span>
+            </div>
+          ) : (
+            <>
+              {/* Botão "← Álbuns" — só aparece quando todas as fotos estão em pastas */}
+              {photoFolders.length > 0 && allPhotos.length === 0 && (
+                <button
+                  onClick={() => setAlbumView(true)}
+                  className="flex-shrink-0 flex items-center gap-1.5 pl-4 pr-3 text-white/35 hover:text-white/70 border-r border-white/8 transition-colors text-[11px] tracking-widest uppercase"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="1.4" viewBox="0 0 24 24" strokeLinecap="round">
+                    <path d="M19 12H5M11 6l-6 6 6 6"/>
+                  </svg>
+                  Álbuns
+                </button>
+              )}
+              {/* Aba "Todas" — só aparece quando há fotos fora de pastas */}
+              {allPhotos.length > 0 && (
+                <TabBtn
+                  label="Todas"
+                  active={activeTab === null}
+                  primaryColor={primaryColor}
+                  onClick={() => handleTabChange(null)}
+                />
+              )}
+              {/* Uma aba por pasta que tem fotos */}
+              {photoFolders.map(folder => (
+                <TabBtn
+                  key={folder.id}
+                  label={folder.name}
+                  active={activeTab === folder.id}
+                  primaryColor={primaryColor}
+                  onClick={() => handleTabChange(folder.id)}
+                />
+              ))}
+            </>
+          )}
         </div>
 
-        {/* Contador + Slideshow + Download */}
-        <div className="flex-shrink-0 flex items-center gap-2 px-4 border-l border-white/8">
+        {/* Contador + Slideshow + Download — oculto na vista de álbuns */}
+        {!albumView && <div className="flex-shrink-0 flex items-center gap-2 px-4 border-l border-white/8">
           <span className="hidden sm:block text-[11px] text-white/25 tabular-nums whitespace-nowrap">
             {currentPhotos.length} foto{currentPhotos.length !== 1 ? "s" : ""}
           </span>
@@ -787,11 +816,11 @@ function PremiumPhotoGallery({
               : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24" strokeLinecap="round"><path d="M12 3v13"/><path d="M8 12l4 4 4-4"/><path d="M3 19h18"/></svg>
             }
           </button>
-        </div>
+        </div>}
       </div>
 
       {/* Progress download */}
-      {dlProgress && (
+      {!albumView && dlProgress && (
         <div className="flex-shrink-0 px-4 py-1 text-[10px] text-white/30 bg-white/3 border-b border-white/6 tabular-nums">
           Compactando {dlProgress}…
         </div>
@@ -799,7 +828,39 @@ function PremiumPhotoGallery({
 
       {/* ── Grid vertical (masonry) — scroll independente da aba ── */}
       <div className="flex-1 overflow-y-auto">
-      {currentPhotos.length === 0 ? (
+      {albumView ? (
+        /* ── Vista de álbuns: grade de pastas com capa ── */
+        <>
+          <style>{`@keyframes albumIn{from{opacity:0;transform:scale(0.95) translateY(10px)}to{opacity:1;transform:none}}`}</style>
+          <div className="px-5 pt-8 pb-3">
+            <p className="text-white/20 text-[10px] tracking-[0.4em] uppercase">Selecione um álbum</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 px-4 pb-8">
+            {photoFolders.map((folder, i) => (
+              <button
+                key={folder.id}
+                onClick={() => { setAlbumView(false); handleTabChange(folder.id) }}
+                className="group relative overflow-hidden rounded-sm focus:outline-none"
+                style={{ aspectRatio: "4/3", animation: `albumIn 0.45s ease both`, animationDelay: `${i * 70}ms` }}
+              >
+                {folder.photos[0] && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photoThumbUrl(folder.photos[0].url, 600, 75)}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-3">
+                  <p className="text-white text-sm font-medium tracking-wide truncate leading-tight">{folder.name}</p>
+                  <p className="text-white/40 text-[11px] mt-0.5">{folder.photos.length} foto{folder.photos.length !== 1 ? "s" : ""}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : currentPhotos.length === 0 ? (
         <div className="flex items-center justify-center py-24">
           <p className="text-white/20 text-sm tracking-widest">Nenhuma foto nesta pasta</p>
         </div>
