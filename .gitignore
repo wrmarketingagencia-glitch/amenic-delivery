@@ -13,8 +13,9 @@
 # testing
 /coverage
 
-# next.js
-/.next/
+# next.js — exclui só cache e trace; standalone + static vão para o servidor
+/.next/cache/
+/.next/trace
 /out/
 
 # production

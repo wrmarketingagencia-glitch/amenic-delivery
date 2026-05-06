@@ -1,0 +1,3 @@
+{
+  "/api/galleries/[id]/music-upload-token/route": "app/api/galleries/[id]/music-upload-token/route.js"
+}

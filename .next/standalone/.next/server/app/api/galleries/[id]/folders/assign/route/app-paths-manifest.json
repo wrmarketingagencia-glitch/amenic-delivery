@@ -1,0 +1,3 @@
+{
+  "/api/galleries/[id]/folders/assign/route": "app/api/galleries/[id]/folders/assign/route.js"
+}

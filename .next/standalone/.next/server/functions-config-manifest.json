@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/galleries/[id]/photos/download-zip": {},
+    "/api/galleries/[id]/videos/download": {
+      "maxDuration": 3600
+    },
+    "/api/upload": {
+      "maxDuration": 300
+    }
+  }
+}

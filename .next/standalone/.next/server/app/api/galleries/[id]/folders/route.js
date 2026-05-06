@@ -1,0 +1,10 @@
+var R=require("../../../../../chunks/[turbopack]_runtime.js")("server/app/api/galleries/[id]/folders/route.js")
+R.c("server/chunks/[root-of-the-server]__0y2zcbp._.js")
+R.c("server/chunks/_0tehioz._.js")
+R.c("server/chunks/node_modules_bcryptjs_index_0bjz0ul.js")
+R.c("server/chunks/_0bwykn1._.js")
+R.c("server/chunks/[root-of-the-server]__13~sq24._.js")
+R.c("server/chunks/node_modules_next_11synfn._.js")
+R.c("server/chunks/_next-internal_server_app_api_galleries_[id]_folders_route_actions_0.v5leh.js")
+R.m(33158)
+module.exports=R.m(33158).exports

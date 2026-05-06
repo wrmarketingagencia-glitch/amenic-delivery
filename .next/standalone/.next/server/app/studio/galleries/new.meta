@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/studio/layout,_N_T_/studio/galleries/layout,_N_T_/studio/galleries/new/layout,_N_T_/studio/galleries/new/page,_N_T_/studio/galleries/new"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/studio/galleries/new/__PAGE__",
+    "/studio/galleries/new",
+    "/studio/galleries",
+    "/studio",
+    "/_index",
+    "/_head"
+  ]
+}

@@ -1,0 +1,3 @@
+{
+  "/api/galleries/[id]/cover-upload-token/route": "app/api/galleries/[id]/cover-upload-token/route.js"
+}

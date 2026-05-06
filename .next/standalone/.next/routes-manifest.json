@@ -1,0 +1,256 @@
+{
+  "version": 3,
+  "pages404": true,
+  "appType": "app",
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "priority": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "onMatchHeaders": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/api/auth/[...nextauth]",
+      "regex": "^/api/auth/(.+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPnextauth": "nxtPnextauth"
+      },
+      "namedRegex": "^/api/auth/(?<nxtPnextauth>.+?)(?:/)?$"
+    },
+    {
+      "page": "/api/galleries/[id]",
+      "regex": "^/api/galleries/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/galleries/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/galleries/[id]/cover-upload-token",
+      "regex": "^/api/galleries/([^/]+?)/cover\\-upload\\-token(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/galleries/(?<nxtPid>[^/]+?)/cover\\-upload\\-token(?:/)?$"
+    },
+    {
+      "page": "/api/galleries/[id]/folders",
+      "regex": "^/api/galleries/([^/]+?)/folders(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/galleries/(?<nxtPid>[^/]+?)/folders(?:/)?$"
+    },
+    {
+      "page": "/api/galleries/[id]/folders/assign",
+      "regex": "^/api/galleries/([^/]+?)/folders/assign(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/galleries/(?<nxtPid>[^/]+?)/folders/assign(?:/)?$"
+    },
+    {
+      "page": "/api/galleries/[id]/music-upload-token",
+      "regex": "^/api/galleries/([^/]+?)/music\\-upload\\-token(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/galleries/(?<nxtPid>[^/]+?)/music\\-upload\\-token(?:/)?$"
+    },
+    {
+      "page": "/api/galleries/[id]/photos",
+      "regex": "^/api/galleries/([^/]+?)/photos(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/galleries/(?<nxtPid>[^/]+?)/photos(?:/)?$"
+    },
+    {
+      "page": "/api/galleries/[id]/photos/download-zip",
+      "regex": "^/api/galleries/([^/]+?)/photos/download\\-zip(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/galleries/(?<nxtPid>[^/]+?)/photos/download\\-zip(?:/)?$"
+    },
+    {
+      "page": "/api/galleries/[id]/photos/upload-token",
+      "regex": "^/api/galleries/([^/]+?)/photos/upload\\-token(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/galleries/(?<nxtPid>[^/]+?)/photos/upload\\-token(?:/)?$"
+    },
+    {
+      "page": "/api/galleries/[id]/publish",
+      "regex": "^/api/galleries/([^/]+?)/publish(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/galleries/(?<nxtPid>[^/]+?)/publish(?:/)?$"
+    },
+    {
+      "page": "/api/galleries/[id]/videos",
+      "regex": "^/api/galleries/([^/]+?)/videos(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/galleries/(?<nxtPid>[^/]+?)/videos(?:/)?$"
+    },
+    {
+      "page": "/api/galleries/[id]/videos/download",
+      "regex": "^/api/galleries/([^/]+?)/videos/download(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/galleries/(?<nxtPid>[^/]+?)/videos/download(?:/)?$"
+    },
+    {
+      "page": "/api/galleries/[id]/videos/upload-token",
+      "regex": "^/api/galleries/([^/]+?)/videos/upload\\-token(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/galleries/(?<nxtPid>[^/]+?)/videos/upload\\-token(?:/)?$"
+    },
+    {
+      "page": "/g/[slug]",
+      "regex": "^/g/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/g/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/studio/galleries/[id]",
+      "regex": "^/studio/galleries/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/studio/galleries/(?<nxtPid>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_global-error",
+      "regex": "^/_global\\-error(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_global\\-error(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/api/auth/register",
+      "regex": "^/api/auth/register(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/auth/register(?:/)?$"
+    },
+    {
+      "page": "/api/galleries",
+      "regex": "^/api/galleries(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/galleries(?:/)?$"
+    },
+    {
+      "page": "/api/studio",
+      "regex": "^/api/studio(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/studio(?:/)?$"
+    },
+    {
+      "page": "/api/upload",
+      "regex": "^/api/upload(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/upload(?:/)?$"
+    },
+    {
+      "page": "/apple-icon.png",
+      "regex": "^/apple\\-icon\\.png(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/apple\\-icon\\.png(?:/)?$"
+    },
+    {
+      "page": "/favicon.ico",
+      "regex": "^/favicon\\.ico(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/favicon\\.ico(?:/)?$"
+    },
+    {
+      "page": "/icon.png",
+      "regex": "^/icon\\.png(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/icon\\.png(?:/)?$"
+    },
+    {
+      "page": "/studio/dashboard",
+      "regex": "^/studio/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/studio/dashboard(?:/)?$"
+    },
+    {
+      "page": "/studio/galleries/new",
+      "regex": "^/studio/galleries/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/studio/galleries/new(?:/)?$"
+    },
+    {
+      "page": "/studio/login",
+      "regex": "^/studio/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/studio/login(?:/)?$"
+    },
+    {
+      "page": "/studio/register",
+      "regex": "^/studio/register(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/studio/register(?:/)?$"
+    },
+    {
+      "page": "/studio/settings",
+      "regex": "^/studio/settings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/studio/settings(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments",
+    "clientParamParsing": false,
+    "dynamicRSCPrerender": false
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}
