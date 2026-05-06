@@ -662,6 +662,75 @@ function SlideshowOverlay({
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   FOLDER STRIP — faixa horizontal com auto-scroll infinito
+   · Usada na landing page quando todas as fotos estão em pastas
+   · Auto-scroll contínuo via requestAnimationFrame (para no hover)
+   · Clique na faixa → abre aquela pasta
+══════════════════════════════════════════════════════════════════ */
+function FolderStrip({
+  folder,
+  speedSeconds,
+  onOpen,
+}: {
+  folder: FolderWithItems
+  speedSeconds: number
+  onOpen: () => void
+}) {
+  const trackRef  = useRef<HTMLDivElement>(null)
+  const posRef    = useRef(0)
+  const pausedRef = useRef(false)
+  const rafRef    = useRef(0)
+  const lastTsRef = useRef(0)
+
+  useEffect(() => {
+    const track = trackRef.current
+    if (!track) return
+    const getHalfW = () => track.scrollWidth / 2
+    const step = (ts: number) => {
+      const dt = lastTsRef.current ? (ts - lastTsRef.current) / 1000 : 0
+      lastTsRef.current = ts
+      if (!pausedRef.current) {
+        posRef.current += (getHalfW() / speedSeconds) * dt
+        if (posRef.current >= getHalfW()) posRef.current -= getHalfW()
+        track.style.transform = `translateX(${-posRef.current}px)`
+      }
+      rafRef.current = requestAnimationFrame(step)
+    }
+    rafRef.current = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [speedSeconds])
+
+  const photos = [...folder.photos, ...folder.photos]
+
+  return (
+    <div>
+      <p style={{ padding: "0 28px", marginBottom: 12, fontSize: 10, letterSpacing: "0.35em", textTransform: "uppercase", color: "rgba(0,0,0,0.35)", fontWeight: 500 }}>
+        {folder.name}
+      </p>
+      <div
+        style={{ overflow: "hidden", cursor: "pointer" }}
+        onClick={onOpen}
+        onMouseEnter={() => { pausedRef.current = true }}
+        onMouseLeave={() => { pausedRef.current = false }}
+      >
+        <div ref={trackRef} style={{ display: "flex", gap: 6, width: "max-content" }}>
+          {photos.map((photo, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={`${photo.id}-${i}`}
+              src={photoThumbUrl(photo.url, 500, 82)}
+              alt={photo.caption || ""}
+              style={{ height: 200, width: "auto", display: "block", flexShrink: 0, objectFit: "cover", borderRadius: 1, pointerEvents: "none" }}
+              draggable={false}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════════════════════
    PREMIUM PHOTO GALLERY
    · Abas de pastas no topo (Todas + cada pasta com fotos)
    · Filmstrip horizontal com altura total da área
@@ -802,9 +871,23 @@ function PremiumPhotoGallery({
       {/* ── Grid vertical (masonry) — scroll independente da aba ── */}
       <div className="flex-1 overflow-y-auto bg-white">
       {currentPhotos.length === 0 ? (
-        <div className="flex items-center justify-center py-24">
-          <p className="text-black/25 text-sm tracking-widest">Nenhuma foto nesta pasta</p>
-        </div>
+        activeTab === null && photoFolders.length > 0 ? (
+          /* Landing: todas as fotos estão em pastas → faixas horizontais */
+          <div className="py-8 flex flex-col gap-9">
+            {photoFolders.map((folder, i) => (
+              <FolderStrip
+                key={folder.id}
+                folder={folder}
+                speedSeconds={25 + (i % 3) * 5}
+                onOpen={() => handleTabChange(folder.id)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center py-24">
+            <p className="text-black/25 text-sm tracking-widest">Nenhuma foto nesta pasta</p>
+          </div>
+        )
       ) : (
         <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 p-3">
           {currentPhotos.map((photo, i) => (
