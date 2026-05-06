@@ -716,7 +716,7 @@ function PremiumPhotoGallery({
   }
 
   return (
-    <div className="flex flex-col bg-[#080808] min-h-screen">
+    <div className="flex flex-col bg-[#080808]" style={{ height: "100svh" }}>
 
       {/* ── Tab bar ─────────────────────────────────────────────── */}
       <div
@@ -797,7 +797,8 @@ function PremiumPhotoGallery({
         </div>
       )}
 
-      {/* ── Grid vertical (masonry) ──────────────────────────────── */}
+      {/* ── Grid vertical (masonry) — scroll independente da aba ── */}
+      <div className="flex-1 overflow-y-auto">
       {currentPhotos.length === 0 ? (
         <div className="flex items-center justify-center py-24">
           <p className="text-white/20 text-sm tracking-widest">Nenhuma foto nesta pasta</p>
@@ -836,6 +837,7 @@ function PremiumPhotoGallery({
           ))}
         </div>
       )}
+      </div>{/* fim flex-1 overflow-y-auto */}
 
       {/* Lightbox */}
       {lightboxIndex !== null && (
