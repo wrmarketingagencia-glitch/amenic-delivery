@@ -6,7 +6,7 @@ if (!process.env._AMENIC_SPAWNED) {
     env: {
       ...process.env,
       UV_THREADPOOL_SIZE: "1",
-      NODE_OPTIONS: "--max-old-space-size=256 --single-threaded-gc",
+      NODE_OPTIONS: "--max-old-space-size=512",
       _AMENIC_SPAWNED: "1",
     },
     stdio: "inherit",
