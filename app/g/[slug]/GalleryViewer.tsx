@@ -685,19 +685,30 @@ function FolderStrip({
   useEffect(() => {
     const track = trackRef.current
     if (!track) return
-    const getHalfW = () => track.scrollWidth / 2
+    // Cacheia halfW após layout estabilizar — evita reflow a cada frame
+    let halfW = 0
+    const cacheHalfW = () => { halfW = track.scrollWidth / 2 }
+    // Aguarda primeira imagem carregar para medir corretamente
+    const firstImg = track.querySelector("img")
+    if (firstImg?.complete) { cacheHalfW() } else { firstImg?.addEventListener("load", cacheHalfW, { once: true }) }
+    // Recalcula se janela redimensionar
+    window.addEventListener("resize", cacheHalfW)
     const step = (ts: number) => {
       const dt = lastTsRef.current ? (ts - lastTsRef.current) / 1000 : 0
       lastTsRef.current = ts
-      if (!pausedRef.current) {
+      if (!pausedRef.current && halfW > 0) {
         posRef.current += STRIP_PX_PER_SEC * dt
-        if (posRef.current >= getHalfW()) posRef.current -= getHalfW()
-        track.style.transform = `translateX(${-posRef.current}px)`
+        if (posRef.current >= halfW) posRef.current -= halfW
+        // translate3d força camada GPU — elimina jank em mobile
+        track.style.transform = `translate3d(${-posRef.current}px, 0, 0)`
       }
       rafRef.current = requestAnimationFrame(step)
     }
     rafRef.current = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(rafRef.current)
+    return () => {
+      cancelAnimationFrame(rafRef.current)
+      window.removeEventListener("resize", cacheHalfW)
+    }
   }, [])
 
   const photos = [...folder.photos, ...folder.photos]
@@ -713,7 +724,7 @@ function FolderStrip({
         onMouseEnter={() => { pausedRef.current = true }}
         onMouseLeave={() => { pausedRef.current = false }}
       >
-        <div ref={trackRef} style={{ display: "flex", gap: 6, width: "max-content" }}>
+        <div ref={trackRef} style={{ display: "flex", gap: 6, width: "max-content", willChange: "transform" }}>
           {photos.map((photo, i) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img
