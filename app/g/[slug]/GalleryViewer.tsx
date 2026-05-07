@@ -1105,13 +1105,15 @@ function LayoutGatsby({ gallery, primaryColor, fontFamily }: { gallery: GalleryW
     const audio = audioRef.current
     if (!audio || !gallery.musicUrl) return
     audio.volume = 0.35
-    const tryPlay = () => audio.play().then(() => setMusicPlaying(true)).catch(() => {})
-    tryPlay().catch(() => {
-      const unlock = () => { tryPlay(); document.removeEventListener("click", unlock); document.removeEventListener("touchstart", unlock); document.removeEventListener("keydown", unlock) }
-      document.addEventListener("click",      unlock, { once: true })
-      document.addEventListener("touchstart", unlock, { once: true })
-      document.addEventListener("keydown",    unlock, { once: true })
-    })
+    const unlock = () => audio.play().then(() => setMusicPlaying(true)).catch(() => {})
+    audio.play()
+      .then(() => setMusicPlaying(true))
+      .catch(() => {
+        // iOS bloqueia autoplay — inicia na primeira interação do usuário
+        document.addEventListener("click",      unlock, { once: true })
+        document.addEventListener("touchstart", unlock, { once: true })
+        document.addEventListener("keydown",    unlock, { once: true })
+      })
   }, [gallery.musicUrl])
 
   const toggleMusic = useCallback(() => {
@@ -1408,12 +1410,13 @@ function LayoutEditorial({ gallery, primaryColor, fontFamily }: { gallery: Galle
     const audio = audioRef.current
     if (!audio || !gallery.musicUrl) return
     audio.volume = 0.35
-    const tryPlay = () => audio.play().then(() => setMusicPlaying(true)).catch(() => {})
-    tryPlay().catch(() => {
-      const unlock = () => { tryPlay(); document.removeEventListener("click", unlock); document.removeEventListener("touchstart", unlock) }
-      document.addEventListener("click", unlock, { once: true })
-      document.addEventListener("touchstart", unlock, { once: true })
-    })
+    const unlock = () => audio.play().then(() => setMusicPlaying(true)).catch(() => {})
+    audio.play()
+      .then(() => setMusicPlaying(true))
+      .catch(() => {
+        document.addEventListener("click",      unlock, { once: true })
+        document.addEventListener("touchstart", unlock, { once: true })
+      })
   }, [gallery.musicUrl])
 
   const toggleMusic  = () => { if (!audioRef.current) return; musicPlaying ? (audioRef.current.pause(), setMusicPlaying(false)) : (audioRef.current.play().then(() => setMusicPlaying(true)).catch(() => {})) }
@@ -1575,12 +1578,13 @@ function LayoutCinema({ gallery, primaryColor, fontFamily }: { gallery: GalleryW
     const audio = audioRef.current
     if (!audio || !gallery.musicUrl) return
     audio.volume = 0.35
-    const tryPlay = () => audio.play().then(() => setMusicPlaying(true)).catch(() => {})
-    tryPlay().catch(() => {
-      const unlock = () => { tryPlay(); document.removeEventListener("click", unlock); document.removeEventListener("touchstart", unlock) }
-      document.addEventListener("click", unlock, { once: true })
-      document.addEventListener("touchstart", unlock, { once: true })
-    })
+    const unlock = () => audio.play().then(() => setMusicPlaying(true)).catch(() => {})
+    audio.play()
+      .then(() => setMusicPlaying(true))
+      .catch(() => {
+        document.addEventListener("click",      unlock, { once: true })
+        document.addEventListener("touchstart", unlock, { once: true })
+      })
   }, [gallery.musicUrl])
 
   const toggleMusic      = () => { if (!audioRef.current) return; musicPlaying ? (audioRef.current.pause(), setMusicPlaying(false)) : (audioRef.current.play().then(() => setMusicPlaying(true)).catch(() => {})) }
