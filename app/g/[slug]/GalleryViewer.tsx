@@ -667,13 +667,13 @@ function SlideshowOverlay({
    · Auto-scroll contínuo via requestAnimationFrame (para no hover)
    · Clique na faixa → abre aquela pasta
 ══════════════════════════════════════════════════════════════════ */
+const STRIP_PX_PER_SEC = 80 // velocidade constante para todas as faixas
+
 function FolderStrip({
   folder,
-  speedSeconds,
   onOpen,
 }: {
   folder: FolderWithItems
-  speedSeconds: number
   onOpen: () => void
 }) {
   const trackRef  = useRef<HTMLDivElement>(null)
@@ -690,7 +690,7 @@ function FolderStrip({
       const dt = lastTsRef.current ? (ts - lastTsRef.current) / 1000 : 0
       lastTsRef.current = ts
       if (!pausedRef.current) {
-        posRef.current += (getHalfW() / speedSeconds) * dt
+        posRef.current += STRIP_PX_PER_SEC * dt
         if (posRef.current >= getHalfW()) posRef.current -= getHalfW()
         track.style.transform = `translateX(${-posRef.current}px)`
       }
@@ -698,7 +698,7 @@ function FolderStrip({
     }
     rafRef.current = requestAnimationFrame(step)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [speedSeconds])
+  }, [])
 
   const photos = [...folder.photos, ...folder.photos]
 
@@ -874,11 +874,10 @@ function PremiumPhotoGallery({
         activeTab === null && photoFolders.length > 0 ? (
           /* Landing: todas as fotos estão em pastas → faixas horizontais */
           <div className="py-8 flex flex-col gap-9">
-            {photoFolders.map((folder, i) => (
+            {photoFolders.map((folder) => (
               <FolderStrip
                 key={folder.id}
                 folder={folder}
-                speedSeconds={25 + (i % 3) * 5}
                 onOpen={() => handleTabChange(folder.id)}
               />
             ))}
@@ -1197,6 +1196,7 @@ function LayoutGatsby({ gallery, primaryColor, fontFamily }: { gallery: GalleryW
           )}
           {firstVideo?.mp4Url && (
             <video ref={bgVideoRef} src={firstVideo.mp4Url} autoPlay muted loop playsInline
+              poster={firstVideo.thumbnailUrl || undefined}
               className="absolute inset-0 w-full h-full object-cover"
               style={{ filter: "brightness(0.45)" }} />
           )}
