@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build",
+    "build": "next build && mkdir -p tmp && touch tmp/restart.txt",
     "start": "next start",
     "lint": "eslint",
     "seed": "npx dotenv-cli -e .env -e .env.local -- npx tsx prisma/seed.ts",
