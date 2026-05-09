@@ -107,12 +107,11 @@ function VideoFramePicker({
   disabled,
 }: {
   mp4Url: string
-  onCapture: (file: File) => void
+  onCapture: (seconds: number) => void
   disabled: boolean
 }) {
-  const videoRef  = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [pos, setPos]   = useState(0)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [pos, setPos]           = useState(0)
   const [duration, setDuration] = useState(0)
 
   const handleScrub = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,39 +120,20 @@ function VideoFramePicker({
     if (videoRef.current) videoRef.current.currentTime = t
   }
 
-  const handleCapture = () => {
-    const v = videoRef.current
-    const c = canvasRef.current
-    if (!v || !c) return
-    c.width  = v.videoWidth  || 640
-    c.height = v.videoHeight || 360
-    c.getContext("2d")?.drawImage(v, 0, 0, c.width, c.height)
-    c.toBlob(blob => {
-      if (!blob) return
-      onCapture(new File([blob], `frame_${Date.now()}.jpg`, { type: "image/jpeg" }))
-    }, "image/jpeg", 0.92)
-  }
-
   return (
     <div className="flex flex-col gap-2">
       <label className="text-[10px] text-white/40">Frame do vídeo</label>
 
-      {/* Vídeo visível — exibe o frame diretamente */}
       <video
         ref={videoRef}
         src={mp4Url}
-        crossOrigin="anonymous"
-        preload="metadata"
+        preload="auto"
         muted
         playsInline
         className="w-full rounded bg-black"
         onLoadedMetadata={() => setDuration(videoRef.current?.duration ?? 0)}
       />
 
-      {/* Canvas oculto — usado só na captura */}
-      <canvas ref={canvasRef} className="hidden" />
-
-      {/* Scrubber */}
       <input
         type="range"
         min={0}
@@ -165,7 +145,7 @@ function VideoFramePicker({
       />
 
       <button
-        onClick={handleCapture}
+        onClick={() => onCapture(pos)}
         disabled={disabled || duration === 0}
         className="w-full py-1.5 rounded bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 border border-[#C9A84C]/25 text-[#C9A84C] text-[10px] transition-colors disabled:opacity-40">
         {disabled ? "…" : "Usar este frame"}
@@ -432,6 +412,22 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
       setCoverUrl(thumbUrl)
       await patch({ coverImageUrl: thumbUrl })
     }
+  }
+
+  const setThumbFromFrame = async (videoId: string, seconds: number) => {
+    setThumbLoading(true)
+    const res = await fetch(`/api/galleries/${gallery.id}/videos`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId, thumbnailTime: Math.round(seconds) }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setVideos(vs => vs.map(v => v.id === videoId ? { ...v, thumbnailUrl: data.thumbnailUrl } : v))
+      await syncCoverIfPrincipal(videoId, data.thumbnailUrl)
+      setThumbOpenId(null)
+    }
+    setThumbLoading(false)
   }
 
   const uploadCustomThumb = async (videoId: string, file: File) => {
@@ -1060,7 +1056,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                               <VideoFramePicker
                                 mp4Url={v.mp4Url}
                                 disabled={thumbLoading}
-                                onCapture={file => uploadCustomThumb(v.id, file)}
+                                onCapture={secs => setThumbFromFrame(v.id, secs)}
                               />
                             )}
 
@@ -1265,7 +1261,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                                       <VideoFramePicker
                                         mp4Url={v.mp4Url}
                                         disabled={thumbLoading}
-                                        onCapture={file => uploadCustomThumb(v.id, file)}
+                                        onCapture={secs => setThumbFromFrame(v.id, secs)}
                                       />
                                     )}
 
@@ -1388,7 +1384,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                             <VideoFramePicker
                               mp4Url={v.mp4Url}
                               disabled={thumbLoading}
-                              onCapture={file => uploadCustomThumb(v.id, file)}
+                              onCapture={secs => setThumbFromFrame(v.id, secs)}
                             />
                           )}
 
