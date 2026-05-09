@@ -100,6 +100,93 @@ const SectionTitle = ({ children, className }: { children: React.ReactNode; clas
   <h3 className={`text-xs tracking-[0.2em] uppercase text-white/40 font-light mb-4 ${className ?? ""}`}>{children}</h3>
 )
 
+/* ── Seletor de frame por scrubbing ─────────────────────────────── */
+function VideoFramePicker({
+  mp4Url,
+  onCapture,
+  disabled,
+}: {
+  mp4Url: string
+  onCapture: (file: File) => void
+  disabled: boolean
+}) {
+  const videoRef  = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [pos, setPos]      = useState(0)
+  const [duration, setDuration] = useState(0)
+
+  const drawFrame = () => {
+    const v = videoRef.current
+    const c = canvasRef.current
+    if (!v || !c) return
+    c.getContext("2d")?.drawImage(v, 0, 0, c.width, c.height)
+  }
+
+  const handleScrub = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const t = Number(e.target.value)
+    setPos(t)
+    if (videoRef.current) videoRef.current.currentTime = t
+  }
+
+  const handleCapture = () => {
+    const c = canvasRef.current
+    if (!c) return
+    c.toBlob(blob => {
+      if (!blob) return
+      onCapture(new File([blob], `frame_${Date.now()}.jpg`, { type: "image/jpeg" }))
+    }, "image/jpeg", 0.92)
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="text-[10px] text-white/40">Frame do vídeo</label>
+
+      {/* Preview canvas */}
+      <canvas
+        ref={canvasRef}
+        width={280}
+        height={158}
+        className="w-full rounded bg-black"
+      />
+
+      {/* Scrubber */}
+      <input
+        type="range"
+        min={0}
+        max={duration || 100}
+        step={0.05}
+        value={pos}
+        onChange={handleScrub}
+        className="w-full accent-[#C9A84C]"
+      />
+
+      <button
+        onClick={handleCapture}
+        disabled={disabled || duration === 0}
+        className="w-full py-1.5 rounded bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 border border-[#C9A84C]/25 text-[#C9A84C] text-[10px] transition-colors disabled:opacity-40">
+        {disabled ? "…" : "Usar este frame"}
+      </button>
+
+      {/* Video oculto */}
+      <video
+        ref={videoRef}
+        src={mp4Url}
+        crossOrigin="anonymous"
+        preload="metadata"
+        muted
+        playsInline
+        className="hidden"
+        onLoadedMetadata={() => {
+          const v = videoRef.current!
+          setDuration(v.duration)
+          v.currentTime = 0
+        }}
+        onSeeked={drawFrame}
+      />
+    </div>
+  )
+}
+
 export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
   const [section, setSection] = useState<Section>("upload")
   const [videos, setVideos] = useState<Video[]>(gallery.videos)
@@ -328,7 +415,6 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
   const [editingVideoId,   setEditingVideoId]   = useState<string | null>(null)
   const [editingVideoName, setEditingVideoName] = useState("")
   const [thumbOpenId,      setThumbOpenId]      = useState<string | null>(null)
-  const [thumbTime,        setThumbTime]        = useState("00:00:00")
   const [thumbLoading,     setThumbLoading]     = useState(false)
   const thumbFileRef = useRef<HTMLInputElement>(null)
   const [thumbUploadId, setThumbUploadId] = useState<string | null>(null)
@@ -359,24 +445,6 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
       setCoverUrl(thumbUrl)
       await patch({ coverImageUrl: thumbUrl })
     }
-  }
-
-  const setThumbFromFrame = async (videoId: string) => {
-    const parts = thumbTime.split(":").map(Number)
-    const seconds = (parts[0] ?? 0) * 3600 + (parts[1] ?? 0) * 60 + (parts[2] ?? 0)
-    setThumbLoading(true)
-    const res = await fetch(`/api/galleries/${gallery.id}/videos`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ videoId, thumbnailTime: seconds }),
-    })
-    if (res.ok) {
-      const data = await res.json()
-      setVideos(vs => vs.map(v => v.id === videoId ? { ...v, thumbnailUrl: data.thumbnailUrl } : v))
-      await syncCoverIfPrincipal(videoId, data.thumbnailUrl)
-      setThumbOpenId(null)
-    }
-    setThumbLoading(false)
   }
 
   const uploadCustomThumb = async (videoId: string, file: File) => {
@@ -1000,25 +1068,13 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                           <div className="border-t border-white/8 px-3 py-3 bg-black/20 flex flex-col gap-3">
                             <p className="text-[9px] tracking-[0.18em] uppercase text-white/30 font-light">Thumbnail</p>
 
-                            {/* Frame from video */}
-                            {v.hlsUrl && (
-                              <div className="flex flex-col gap-1.5">
-                                <label className="text-[10px] text-white/40">Frame do vídeo (hh:mm:ss)</label>
-                                <div className="flex gap-2">
-                                  <input
-                                    value={thumbTime}
-                                    onChange={e => setThumbTime(e.target.value)}
-                                    placeholder="00:00:00"
-                                    className="flex-1 px-2 py-1.5 rounded bg-white/5 border border-white/12 text-xs text-white font-mono focus:outline-none focus:border-[#C9A84C]/40"
-                                  />
-                                  <button
-                                    onClick={() => setThumbFromFrame(v.id)}
-                                    disabled={thumbLoading}
-                                    className="px-2.5 py-1.5 rounded bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 border border-[#C9A84C]/25 text-[#C9A84C] text-[10px] transition-colors disabled:opacity-40 whitespace-nowrap">
-                                    {thumbLoading ? "…" : "Usar frame"}
-                                  </button>
-                                </div>
-                              </div>
+                            {/* Frame from video — scrubber */}
+                            {v.mp4Url && (
+                              <VideoFramePicker
+                                mp4Url={v.mp4Url}
+                                disabled={thumbLoading}
+                                onCapture={file => uploadCustomThumb(v.id, file)}
+                              />
                             )}
 
                             {/* Custom upload */}
@@ -1218,24 +1274,12 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                                   <div className="border-t border-white/8 px-3 py-3 bg-black/20 flex flex-col gap-3">
                                     <p className="text-[9px] tracking-[0.18em] uppercase text-white/30 font-light">Thumbnail</p>
 
-                                    {v.hlsUrl && (
-                                      <div className="flex flex-col gap-1.5">
-                                        <label className="text-[10px] text-white/40">Frame do vídeo (hh:mm:ss)</label>
-                                        <div className="flex gap-2">
-                                          <input
-                                            value={thumbTime}
-                                            onChange={e => setThumbTime(e.target.value)}
-                                            placeholder="00:00:00"
-                                            className="flex-1 px-2 py-1.5 rounded bg-white/5 border border-white/12 text-xs text-white font-mono focus:outline-none focus:border-[#C9A84C]/40"
-                                          />
-                                          <button
-                                            onClick={() => setThumbFromFrame(v.id)}
-                                            disabled={thumbLoading}
-                                            className="px-2.5 py-1.5 rounded bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 border border-[#C9A84C]/25 text-[#C9A84C] text-[10px] transition-colors disabled:opacity-40 whitespace-nowrap">
-                                            {thumbLoading ? "…" : "Usar frame"}
-                                          </button>
-                                        </div>
-                                      </div>
+                                    {v.mp4Url && (
+                                      <VideoFramePicker
+                                        mp4Url={v.mp4Url}
+                                        disabled={thumbLoading}
+                                        onCapture={file => uploadCustomThumb(v.id, file)}
+                                      />
                                     )}
 
                                     <button
@@ -1353,24 +1397,12 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                         <div className="border-t border-white/8 px-3 py-3 bg-black/20 flex flex-col gap-3">
                           <p className="text-[9px] tracking-[0.18em] uppercase text-white/30 font-light">Thumbnail</p>
 
-                          {v.hlsUrl && (
-                            <div className="flex flex-col gap-1.5">
-                              <label className="text-[10px] text-white/40">Frame do vídeo (hh:mm:ss)</label>
-                              <div className="flex gap-2">
-                                <input
-                                  value={thumbTime}
-                                  onChange={e => setThumbTime(e.target.value)}
-                                  placeholder="00:00:00"
-                                  className="flex-1 px-2 py-1.5 rounded bg-white/5 border border-white/12 text-xs text-white font-mono focus:outline-none focus:border-[#C9A84C]/40"
-                                />
-                                <button
-                                  onClick={() => setThumbFromFrame(v.id)}
-                                  disabled={thumbLoading}
-                                  className="px-2.5 py-1.5 rounded bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 border border-[#C9A84C]/25 text-[#C9A84C] text-[10px] transition-colors disabled:opacity-40 whitespace-nowrap">
-                                  {thumbLoading ? "…" : "Usar frame"}
-                                </button>
-                              </div>
-                            </div>
+                          {v.mp4Url && (
+                            <VideoFramePicker
+                              mp4Url={v.mp4Url}
+                              disabled={thumbLoading}
+                              onCapture={file => uploadCustomThumb(v.id, file)}
+                            />
                           )}
 
                           <button
