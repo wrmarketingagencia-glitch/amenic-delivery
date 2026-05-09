@@ -175,7 +175,7 @@ function VideoFramePicker({
         preload="metadata"
         muted
         playsInline
-        className="hidden"
+        style={{ position: "fixed", top: "-9999px", left: "-9999px", width: 1, height: 1 }}
         onLoadedMetadata={() => {
           const v = videoRef.current!
           setDuration(v.duration)
