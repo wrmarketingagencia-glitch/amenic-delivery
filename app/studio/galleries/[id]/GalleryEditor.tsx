@@ -112,15 +112,8 @@ function VideoFramePicker({
 }) {
   const videoRef  = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [pos, setPos]      = useState(0)
+  const [pos, setPos]   = useState(0)
   const [duration, setDuration] = useState(0)
-
-  const drawFrame = () => {
-    const v = videoRef.current
-    const c = canvasRef.current
-    if (!v || !c) return
-    c.getContext("2d")?.drawImage(v, 0, 0, c.width, c.height)
-  }
 
   const handleScrub = (e: React.ChangeEvent<HTMLInputElement>) => {
     const t = Number(e.target.value)
@@ -129,8 +122,12 @@ function VideoFramePicker({
   }
 
   const handleCapture = () => {
+    const v = videoRef.current
     const c = canvasRef.current
-    if (!c) return
+    if (!v || !c) return
+    c.width  = v.videoWidth  || 640
+    c.height = v.videoHeight || 360
+    c.getContext("2d")?.drawImage(v, 0, 0, c.width, c.height)
     c.toBlob(blob => {
       if (!blob) return
       onCapture(new File([blob], `frame_${Date.now()}.jpg`, { type: "image/jpeg" }))
@@ -141,13 +138,20 @@ function VideoFramePicker({
     <div className="flex flex-col gap-2">
       <label className="text-[10px] text-white/40">Frame do vídeo</label>
 
-      {/* Preview canvas */}
-      <canvas
-        ref={canvasRef}
-        width={280}
-        height={158}
+      {/* Vídeo visível — exibe o frame diretamente */}
+      <video
+        ref={videoRef}
+        src={mp4Url}
+        crossOrigin="anonymous"
+        preload="metadata"
+        muted
+        playsInline
         className="w-full rounded bg-black"
+        onLoadedMetadata={() => setDuration(videoRef.current?.duration ?? 0)}
       />
+
+      {/* Canvas oculto — usado só na captura */}
+      <canvas ref={canvasRef} className="hidden" />
 
       {/* Scrubber */}
       <input
@@ -166,23 +170,6 @@ function VideoFramePicker({
         className="w-full py-1.5 rounded bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 border border-[#C9A84C]/25 text-[#C9A84C] text-[10px] transition-colors disabled:opacity-40">
         {disabled ? "…" : "Usar este frame"}
       </button>
-
-      {/* Video oculto */}
-      <video
-        ref={videoRef}
-        src={mp4Url}
-        crossOrigin="anonymous"
-        preload="metadata"
-        muted
-        playsInline
-        style={{ position: "fixed", top: "-9999px", left: "-9999px", width: 1, height: 1 }}
-        onLoadedMetadata={() => {
-          const v = videoRef.current!
-          setDuration(v.duration)
-          v.currentTime = 0
-        }}
-        onSeeked={drawFrame}
-      />
     </div>
   )
 }
