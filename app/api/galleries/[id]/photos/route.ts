@@ -17,14 +17,13 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 
   if (!url) return NextResponse.json({ error: "url é obrigatório" }, { status: 400 })
 
-  const count = await db.photo.count({ where: { galleryId: id } })
   const photo = await db.photo.create({
     data: {
       galleryId: id,
       url,
       thumbnailUrl: thumbnailUrl || null,
       caption: caption || null,
-      order: count,
+      order: Date.now(), // timestamp evita colisão em inserts paralelos
     },
   })
 

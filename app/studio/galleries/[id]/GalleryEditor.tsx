@@ -155,6 +155,11 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
   const folderPhotoInputRef       = useRef<HTMLInputElement>(null)
   const folderPhotoUploadTargetId = useRef<string | null>(null)
 
+  // General photo upload progress
+  const [photoUploadDone,  setPhotoUploadDone]  = useState(0)
+  const [photoUploadTotal, setPhotoUploadTotal] = useState(0)
+  const [photoUploadError, setPhotoUploadError] = useState("")
+
   // Folders state
   const [folders, setFolders] = useState<FolderWithItems[]>(gallery.folders ?? [])
   const [newFolderName, setNewFolderName] = useState("")
@@ -581,25 +586,41 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     })
 
   /* ── Upload photo: original full-res + thumbnail comprimida ── */
-  const handlePhotoUpload = async (file: File) => {
+  // Processa um único arquivo; chamado sequencialmente pelo handler abaixo.
+  const uploadOnePhoto = async (file: File): Promise<boolean> => {
     const tokenEndpoint = `/api/galleries/${gallery.id}/photos/upload-token`
-
-    // Upload original (full-res) e thumbnail em paralelo
     const [url, thumbnailUrl] = await Promise.all([
       uploadToBunnyStorage(tokenEndpoint, file),
       makeThumbnail(file).then(thumb => uploadToBunnyStorage(tokenEndpoint, thumb)),
     ])
-
-    if (!url) return
+    if (!url) return false
     const photoRes = await fetch(`/api/galleries/${gallery.id}/photos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, thumbnailUrl: thumbnailUrl ?? null }),
     })
-    if (photoRes.ok) {
-      const photo = await photoRes.json()
-      setPhotos(p => [...p, photo])
+    if (!photoRes.ok) return false
+    const photo = await photoRes.json()
+    setPhotos(p => [...p, photo])
+    return true
+  }
+
+  // Handler chamado pelo input múltiplo — serializa uploads e exibe progresso
+  const handlePhotoUpload = async (files: FileList) => {
+    const arr = Array.from(files)
+    if (!arr.length) return
+    setPhotoUploadDone(0)
+    setPhotoUploadTotal(arr.length)
+    setPhotoUploadError("")
+    let failed = 0
+    for (const file of arr) {
+      const ok = await uploadOnePhoto(file)
+      if (!ok) failed++
+      setPhotoUploadDone(d => d + 1)
     }
+    setPhotoUploadTotal(0) // esconde barra ao terminar
+    setPhotoUploadDone(0)
+    if (failed > 0) setPhotoUploadError(`${failed} foto(s) não foram enviadas. Tente novamente.`)
   }
 
   const deletePhoto = async (photoId: string) => {
@@ -801,7 +822,10 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
           <input ref={videoFileRef} type="file" accept="video/*" multiple className="hidden"
             onChange={e => { if (e.target.files) Array.from(e.target.files).forEach(handleVideoUpload) }} />
           <input ref={photoFileRef} type="file" accept="image/*" multiple className="hidden"
-            onChange={e => { if (e.target.files) Array.from(e.target.files).forEach(handlePhotoUpload) }} />
+            onChange={e => {
+              if (e.target.files?.length) handlePhotoUpload(e.target.files)
+              e.target.value = ""
+            }} />
           <input ref={musicFileRef} type="file" accept="audio/*" className="hidden"
             onChange={async e => {
               const file = e.target.files?.[0]
@@ -1376,13 +1400,43 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
           {section === "photos" && (
             <div>
               <SectionTitle>Upload de Fotos</SectionTitle>
-              <button onClick={() => photoFileRef.current?.click()}
-                className="w-full py-6 border border-dashed border-white/15 rounded-lg text-white/30 hover:text-white/50 hover:border-white/25 transition-all text-xs tracking-wider flex flex-col items-center gap-2 mb-5">
-                <svg className="w-6 h-6 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-                </svg>
-                <span>Upload de fotos (múltiplas)</span>
+
+              {/* Botão de upload */}
+              <button
+                onClick={() => { setPhotoUploadError(""); photoFileRef.current?.click() }}
+                disabled={photoUploadTotal > 0}
+                className="w-full py-6 border border-dashed border-white/15 rounded-lg text-white/30 hover:text-white/50 hover:border-white/25 transition-all text-xs tracking-wider flex flex-col items-center gap-2 mb-3 disabled:opacity-40 disabled:cursor-wait">
+                {photoUploadTotal > 0 ? (
+                  <>
+                    <svg className="w-5 h-5 animate-spin opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                    </svg>
+                    <span>Enviando {photoUploadDone}/{photoUploadTotal}…</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-6 h-6 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <span>Upload de fotos (múltiplas)</span>
+                  </>
+                )}
               </button>
+
+              {/* Barra de progresso */}
+              {photoUploadTotal > 0 && (
+                <div className="w-full h-1 bg-white/10 rounded-full mb-3 overflow-hidden">
+                  <div
+                    className="h-full bg-white/50 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.round((photoUploadDone / photoUploadTotal) * 100)}%` }}
+                  />
+                </div>
+              )}
+
+              {/* Erro */}
+              {photoUploadError && (
+                <p className="text-xs text-red-400/80 mb-3 tracking-wide">{photoUploadError}</p>
+              )}
 
               {/* Fotos não atribuídas */}
               {photos.filter(p => !p.folderId).length > 0 && (
