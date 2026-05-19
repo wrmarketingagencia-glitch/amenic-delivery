@@ -568,18 +568,22 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     tokenEndpoint: string,
     file: File,
     onProgress?: (pct: number) => void
-  ): Promise<string | null> => {
+  ): Promise<{ url: string; error?: never } | { url?: never; error: string }> => {
     // Fase 1: pede credenciais ao servidor
     const tokenRes = await fetch(tokenEndpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ filename: file.name }),
     })
-    if (!tokenRes.ok) return null
+    if (!tokenRes.ok) {
+      let detail = ""
+      try { detail = (await tokenRes.json()).error ?? "" } catch { /* ignore */ }
+      return { error: `Token ${tokenRes.status}${detail ? ": " + detail : ""}` }
+    }
     const { uploadUrl, apiKey, cdnUrl } = await tokenRes.json()
 
     // Fase 2: PUT direto ao Bunny Storage via XHR (com progresso)
-    return new Promise<string | null>((resolve) => {
+    return new Promise((resolve) => {
       const xhr = new XMLHttpRequest()
       xhr.open("PUT", uploadUrl)
       xhr.setRequestHeader("AccessKey", apiKey)
@@ -589,8 +593,10 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
           if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
         }
       }
-      xhr.onload  = () => resolve(xhr.status === 201 || xhr.status === 200 ? cdnUrl : null)
-      xhr.onerror = () => resolve(null)
+      xhr.onload  = () => xhr.status === 201 || xhr.status === 200
+        ? resolve({ url: cdnUrl })
+        : resolve({ error: `PUT ${xhr.status}` })
+      xhr.onerror = () => resolve({ error: "PUT network error (CORS?)" })
       xhr.send(file)
     })
   }
@@ -598,13 +604,13 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
   /* ── Upload cover ───────────────────────────────────────────── */
   const handleCoverUpload = async (file: File) => {
     setUploadingCover(true)
-    const url = await uploadToBunnyStorage(
+    const result = await uploadToBunnyStorage(
       `/api/galleries/${gallery.id}/cover-upload-token`,
       file
     )
-    if (url) {
-      setCoverUrl(url)
-      await patch({ coverImageUrl: url })
+    if (result.url) {
+      setCoverUrl(result.url)
+      await patch({ coverImageUrl: result.url })
     }
     setUploadingCover(false)
   }
@@ -637,23 +643,23 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     })
 
   /* ── Upload photo: original full-res + thumbnail comprimida ── */
-  // Processa um único arquivo; chamado sequencialmente pelo handler abaixo.
-  const uploadOnePhoto = async (file: File): Promise<boolean> => {
+  // Processa um único arquivo; retorna null em sucesso ou string de erro.
+  const uploadOnePhoto = async (file: File): Promise<string | null> => {
     const tokenEndpoint = `/api/galleries/${gallery.id}/photos/upload-token`
-    const [url, thumbnailUrl] = await Promise.all([
+    const [origResult, thumbResult] = await Promise.all([
       uploadToBunnyStorage(tokenEndpoint, file),
       makeThumbnail(file).then(thumb => uploadToBunnyStorage(tokenEndpoint, thumb)),
     ])
-    if (!url) return false
+    if (!origResult.url) return origResult.error ?? "Erro desconhecido"
     const photoRes = await fetch(`/api/galleries/${gallery.id}/photos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, thumbnailUrl: thumbnailUrl ?? null }),
+      body: JSON.stringify({ url: origResult.url, thumbnailUrl: thumbResult.url ?? null }),
     })
-    if (!photoRes.ok) return false
+    if (!photoRes.ok) return `DB ${photoRes.status}`
     const photo = await photoRes.json()
     setPhotos(p => [...p, photo])
-    return true
+    return null
   }
 
   // Handler chamado pelo input múltiplo — serializa uploads e exibe progresso
@@ -664,14 +670,15 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     setPhotoUploadTotal(arr.length)
     setPhotoUploadError("")
     let failed = 0
+    let firstError = ""
     for (const file of arr) {
-      const ok = await uploadOnePhoto(file)
-      if (!ok) failed++
+      const err = await uploadOnePhoto(file)
+      if (err) { failed++; if (!firstError) firstError = err }
       setPhotoUploadDone(d => d + 1)
     }
     setPhotoUploadTotal(0) // esconde barra ao terminar
     setPhotoUploadDone(0)
-    if (failed > 0) setPhotoUploadError(`${failed} foto(s) não foram enviadas. Tente novamente.`)
+    if (failed > 0) setPhotoUploadError(`${failed} foto(s) não enviadas — ${firstError}`)
   }
 
   const deletePhoto = async (photoId: string) => {
@@ -684,17 +691,17 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     setFolderPhotoUploadingId(folderId)
     setFolderPhotoUploadProgress(0)
     const tokenEndpoint = `/api/galleries/${gallery.id}/photos/upload-token`
-    const [url, thumbnailUrl] = await Promise.all([
+    const [origResult, thumbResult] = await Promise.all([
       uploadToBunnyStorage(tokenEndpoint, file, pct => setFolderPhotoUploadProgress(pct)),
       makeThumbnail(file).then(thumb => uploadToBunnyStorage(tokenEndpoint, thumb)),
     ])
     setFolderPhotoUploadingId(null)
     setFolderPhotoUploadProgress(0)
-    if (!url) return
+    if (!origResult.url) return
     const photoRes = await fetch(`/api/galleries/${gallery.id}/photos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, thumbnailUrl: thumbnailUrl ?? null }),
+      body: JSON.stringify({ url: origResult.url, thumbnailUrl: thumbResult.url ?? null }),
     })
     if (!photoRes.ok) return
     const photo = await photoRes.json()
@@ -743,18 +750,18 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
         const thumb = await makeThumbnail(file, 480, 0.28)
 
         // Upload compressed thumbnail
-        const newThumbUrl = await uploadToBunnyStorage(tokenEndpoint, thumb)
-        if (!newThumbUrl) continue
+        const thumbResult = await uploadToBunnyStorage(tokenEndpoint, thumb)
+        if (!thumbResult.url) continue
 
         // Update DB record
         await fetch(`/api/galleries/${gallery.id}/photos`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ photoId: photo.id, thumbnailUrl: newThumbUrl }),
+          body: JSON.stringify({ photoId: photo.id, thumbnailUrl: thumbResult.url }),
         })
 
         // Update local state
-        setPhotos(prev => prev.map(p => p.id === photo.id ? { ...p, thumbnailUrl: newThumbUrl } : p))
+        setPhotos(prev => prev.map(p => p.id === photo.id ? { ...p, thumbnailUrl: thumbResult.url } : p))
       } catch {
         // Skip failures, keep going
       }
