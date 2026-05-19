@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       url,
       thumbnailUrl: thumbnailUrl || null,
       caption: caption || null,
-      order: Date.now(), // timestamp evita colisão em inserts paralelos
+      order: Math.floor(Date.now() / 1000), // segundos (cabe em Int32; ms causaria overflow)
     },
   })
 
