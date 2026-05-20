@@ -99,15 +99,6 @@ function Hero() {
           >
             <WhatsAppIcon /> Entre em Contato
           </a>
-          <a
-            href="/studio/login"
-            className="inline-flex items-center justify-center gap-2 px-6 sm:px-8 py-3 sm:py-4 border border-white/25 text-white/70 text-xs sm:text-sm tracking-wider hover:bg-white/5 transition-colors"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-              <path d="M15 10l-4 4L7 10M12 3v11M5 21h14" />
-            </svg>
-            Acessar Galeria
-          </a>
         </div>
       </div>
 
