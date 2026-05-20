@@ -305,27 +305,36 @@ function Experiencia() {
   return (
     <section id="experiencia" className="py-20 sm:py-28 px-4 sm:px-6 lg:px-16 bg-white/[0.02] border-t border-white/5">
       <div className="max-w-2xl mx-auto text-center">
-        <h2
-          className="text-3xl sm:text-4xl lg:text-5xl font-light leading-snug mb-8 sm:mb-10"
-          style={{ fontFamily: "'Playfair Display', serif" }}
-        >
-          Não gravamos um evento.<br />
-          Documentamos um <em className="italic">legado</em>.
-        </h2>
-
         <Image
           src="/landing/logo/logo-branco.png"
           alt="Amenic Filmes"
           width={200}
           height={60}
-          className="mx-auto my-8 sm:my-10 opacity-80 object-contain"
+          className="mx-auto mb-10 sm:mb-12 opacity-80 object-contain"
         />
 
-        <p className="text-white/45 leading-relaxed mb-8 sm:mb-10">
-          Nossa abordagem é silenciosa e observadora. Trabalhamos com equipamentos de cinema para entregar
-          cores reais, som perfeito e cortes dinâmicos que fazem você reviver o frio na barriga anos depois,
-          percebendo detalhes que passaram despercebidos.
-        </p>
+        <div className="text-white/50 leading-relaxed space-y-5 text-sm sm:text-base mb-8 sm:mb-10 text-left sm:text-center">
+          <p>
+            Imaginamos o momento em que, <em className="text-white/80 italic">anos no futuro</em>, vocês dois vão assistir ao vídeo novamente.<br />
+            O coração acelerando do mesmo jeito. Os olhos marejados. Os sorrisos que não conseguem controlar.
+          </p>
+          <p className="text-white/70 font-light" style={{ fontFamily: "'Playfair Display', serif" }}>
+            É para esse momento que trabalhamos.
+          </p>
+          <p>
+            Capturando não só as imagens, mas as <em className="text-white/80 italic">emoções verdadeiras</em>: o olhar que só vocês dois trocam, o tremor na voz ao dizer <strong className="text-white/80 font-normal">"sim"</strong>, o choro contido dos familiares, as risadas e choros espontâneos dos amigos.
+          </p>
+          <p>
+            Entregamos cores reais, som impecável e uma narrativa tão viva que, mesmo depois de muito tempo, você ainda vai sentir o <em className="text-white/80 italic">frio na barriga</em> como se fosse o primeiro dia.
+          </p>
+          <p className="text-white/70">
+            Porque o seu casamento não é um evento.<br />
+            É o começo da <strong className="text-white/90 font-normal">história mais importante da sua vida</strong>.
+          </p>
+          <p>
+            E nós transformamos essa história em um filme que vocês vão querer assistir <em className="text-white/80 italic">para sempre</em>.
+          </p>
+        </div>
         <a
           href={WHATSAPP}
           target="_blank"
