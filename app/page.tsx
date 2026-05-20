@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 
 const HERO_VIDEO = "https://AMENICFOTOS.b-cdn.net/landing/trailer-hero.mp4"
 const WHATSAPP = "https://api.whatsapp.com/send?phone=5561993265625&text=Ol%C3%A1%21+Vim+pelo+site+da+Amenic+Filmes."
@@ -178,60 +178,37 @@ function Hero() {
 
 /* ── Portfolio ──────────────────────────────────────────────────── */
 function Portfolio() {
-  const galleryRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const items = galleryRef.current?.querySelectorAll<HTMLElement>(".gallery-item")
-    if (!items) return
-
-    // Mobile: reveal photos as they scroll into view (IntersectionObserver)
-    const isMobile = () => window.innerWidth < 768
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (isMobile()) {
-            if (entry.isIntersecting) {
-              entry.target.classList.add("gallery-active-mobile")
-            } else {
-              entry.target.classList.remove("gallery-active-mobile")
-            }
-          }
-        })
-      },
-      { threshold: 0.5 }
-    )
-
-    items.forEach((item) => observer.observe(item))
-    return () => observer.disconnect()
-  }, [])
-
   return (
-    <section id="portfolio" className="py-20 sm:py-28 px-4 sm:px-6 lg:px-16">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-10 sm:mb-16">
-          <p className="text-white/30 text-[10px] sm:text-xs tracking-[0.4em] uppercase mb-3">Obras</p>
-          <h2
-            className="text-3xl sm:text-4xl font-light"
-            style={{ fontFamily: "'Playfair Display', serif" }}
-          >
-            Nossa Visão
-          </h2>
-          <p className="text-white/30 text-xs sm:text-sm mt-3">Passe o mouse para revelar a emoção</p>
-        </div>
+    <section id="portfolio" className="py-20 sm:py-28">
+      <div className="text-center mb-10 sm:mb-16 px-4 sm:px-6 lg:px-16">
+        <p className="text-white/30 text-[10px] sm:text-xs tracking-[0.4em] uppercase mb-3">Obras</p>
+        <h2
+          className="text-3xl sm:text-4xl font-light"
+          style={{ fontFamily: "'Playfair Display', serif" }}
+        >
+          Nossa Visão
+        </h2>
+        <p className="text-white/30 text-xs sm:text-sm mt-3">Passe o mouse para revelar a emoção</p>
+      </div>
 
-        {/* Gallery — 3 cols desktop, 2 cols mobile */}
+      {/* Carrossel horizontal — 3 linhas fixas, scroll para o lado */}
+      <div className="overflow-x-auto pb-4" style={{ WebkitOverflowScrolling: "touch" }}>
         <div
-          ref={galleryRef}
-          className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-5"
+          style={{
+            display: "grid",
+            gridTemplateRows: "repeat(3, auto)",
+            gridAutoFlow: "column",
+            gridAutoColumns: "calc(33vw - 12px)",
+            gap: "10px",
+            paddingLeft: "1rem",
+            paddingRight: "1rem",
+          }}
         >
           {FOTOS.map((src, i) => (
             <div
               key={i}
               className="gallery-item relative overflow-hidden rounded-sm aspect-[4/5] bg-black cursor-pointer"
-              style={{ transitionDelay: `${i * 0.1}s` }}
             >
-              {/* Photo: starts grayscale dark, reveals on hover (desktop) or scroll (mobile) */}
               <img
                 src={src}
                 alt={`Casamento ${i + 1}`}
@@ -242,7 +219,6 @@ function Portfolio() {
                   transition: "filter 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
                 }}
               />
-              {/* Inset shadow overlay */}
               <div
                 className="gallery-overlay absolute inset-0"
                 style={{
@@ -255,15 +231,12 @@ function Portfolio() {
         </div>
       </div>
 
-      {/* Inline styles for hover/active-mobile effects */}
       <style>{`
-        .gallery-item:hover .gallery-img,
-        .gallery-item.gallery-active-mobile .gallery-img {
+        .gallery-item:hover .gallery-img {
           filter: grayscale(0%) brightness(1) !important;
           transform: scale(1) !important;
         }
-        .gallery-item:hover .gallery-overlay,
-        .gallery-item.gallery-active-mobile .gallery-overlay {
+        .gallery-item:hover .gallery-overlay {
           opacity: 0 !important;
         }
       `}</style>
