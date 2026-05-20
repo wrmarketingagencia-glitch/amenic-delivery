@@ -662,7 +662,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     return null
   }
 
-  // Handler chamado pelo input múltiplo — serializa uploads e exibe progresso
+  // Handler chamado pelo input múltiplo — 6 uploads simultâneos (pool/semáforo)
   const handlePhotoUpload = async (files: FileList) => {
     const arr = Array.from(files)
     if (!arr.length) return
@@ -671,11 +671,16 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
     setPhotoUploadError("")
     let failed = 0
     let firstError = ""
-    for (const file of arr) {
-      const err = await uploadOnePhoto(file)
-      if (err) { failed++; if (!firstError) firstError = err }
-      setPhotoUploadDone(d => d + 1)
-    }
+    let idx = 0
+    const CONCURRENCY = 6
+    await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
+      while (idx < arr.length) {
+        const file = arr[idx++] // idx++ é síncrono — sem race condition no JS single-thread
+        const err = await uploadOnePhoto(file)
+        if (err) { failed++; if (!firstError) firstError = err }
+        setPhotoUploadDone(d => d + 1)
+      }
+    }))
     setPhotoUploadTotal(0) // esconde barra ao terminar
     setPhotoUploadDone(0)
     if (failed > 0) setPhotoUploadError(`${failed} foto(s) não enviadas — ${firstError}`)
@@ -1433,7 +1438,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
                     <svg className="w-5 h-5 animate-spin opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
                       <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
                     </svg>
-                    <span>Enviando {photoUploadDone}/{photoUploadTotal}…</span>
+                    <span>Enviando {Math.round((photoUploadDone / photoUploadTotal) * 100)}% ({photoUploadDone}/{photoUploadTotal})…</span>
                   </>
                 ) : (
                   <>
