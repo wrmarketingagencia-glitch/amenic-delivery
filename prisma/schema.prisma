@@ -30,7 +30,8 @@ model Gallery {
   subtitle       String?
   coverImageUrl  String?
   password       String?
-  isPublished    Boolean  @default(false)
+  isPublished      Boolean  @default(false)
+  showInPortfolio  Boolean  @default(false)
   fontFamily     String   @default("Playfair Display")
   primaryColor   String   @default("#C9A84C")
   layout         String   @default("gatsby")

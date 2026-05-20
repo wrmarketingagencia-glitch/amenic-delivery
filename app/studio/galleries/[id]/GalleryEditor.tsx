@@ -159,6 +159,7 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
   const [videos, setVideos] = useState<Video[]>(gallery.videos)
   const [photos, setPhotos] = useState<Photo[]>(gallery.photos)
   const [published, setPublished] = useState(gallery.isPublished)
+  const [inPortfolio, setInPortfolio] = useState(gallery.showInPortfolio)
 
   // Upload state
   const [uploading, setUploading] = useState(false)
@@ -1999,10 +2000,24 @@ export function GalleryEditor({ gallery }: { gallery: GalleryWithAll }) {
               )}
 
               <button onClick={togglePublish}
-                className={`w-full py-3 rounded text-xs tracking-widest uppercase font-medium transition-all mb-6 ${
+                className={`w-full py-3 rounded text-xs tracking-widest uppercase font-medium transition-all mb-3 ${
                   published ? "bg-white/8 text-white/50 border border-white/15 hover:bg-white/12" : "bg-[#C9A84C] text-black hover:bg-[#d4b55a]"
                 }`}>
                 {published ? "✓ Publicada — Clique para despublicar" : "Publicar Galeria"}
+              </button>
+
+              <button
+                onClick={async () => {
+                  const next = !inPortfolio
+                  setInPortfolio(next)
+                  await patch({ showInPortfolio: next })
+                }}
+                className={`w-full py-3 rounded text-xs tracking-widest uppercase font-medium transition-all mb-6 border ${
+                  inPortfolio
+                    ? "bg-white/8 text-white/50 border-white/15 hover:bg-white/12"
+                    : "bg-transparent text-white/40 border-white/15 hover:border-white/30 hover:text-white/60"
+                }`}>
+                {inPortfolio ? "✓ No Portfólio Público — Remover" : "Adicionar ao Portfólio Público"}
               </button>
 
               <SectionTitle>Informações para o Cliente</SectionTitle>

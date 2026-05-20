@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 
 const HERO_VIDEO = "https://AMENICFOTOS.b-cdn.net/landing/trailer-hero.mp4"
 const WHATSAPP = "https://api.whatsapp.com/send?phone=5561993265625&text=Ol%C3%A1%21+Vim+pelo+site+da+Amenic+Filmes."
@@ -23,6 +23,9 @@ export default function Home() {
       <Hero />
       <Portfolio />
       <Experiencia />
+      <QuemSouEu />
+      <PortfolioPublico />
+      <Depoimentos />
       <ComoFunciona />
       <Contato />
       <Footer />
@@ -47,6 +50,9 @@ function Navbar() {
       <div className="hidden md:flex items-center gap-8 text-sm text-white/60">
         <a href="#portfolio" className="hover:text-white transition-colors">Nossa Visão</a>
         <a href="#experiencia" className="hover:text-white transition-colors">A Experiência</a>
+        <a href="#quem-sou-eu" className="hover:text-white transition-colors">Quem Sou Eu</a>
+        <a href="#portfolio-publico" className="hover:text-white transition-colors">Portfólio</a>
+        <a href="#depoimentos" className="hover:text-white transition-colors">Depoimentos</a>
       </div>
       <a
         href={WHATSAPP}
@@ -239,6 +245,136 @@ function Experiencia() {
         >
           <WhatsAppIcon /> Consultar Disponibilidade
         </a>
+      </div>
+    </section>
+  )
+}
+
+/* ── Quem Sou Eu ────────────────────────────────────────────────── */
+function QuemSouEu() {
+  const fotos = [
+    "/landing/quem-sou-eu/hf_20260520_013749_379f9ce7-e84f-497e-8c92-069852eb4bb9.png",
+    "/landing/quem-sou-eu/hf_20260520_021231_b17c624f-2594-44e2-a6bd-7f9773870a45.png",
+  ]
+  return (
+    <section id="quem-sou-eu" className="py-20 sm:py-28 px-4 sm:px-6 lg:px-16 border-t border-white/5">
+      <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-10 sm:mb-14">
+          <p className="text-white/30 text-[10px] sm:text-xs tracking-[0.4em] uppercase mb-3">O Cineasta</p>
+          <h2 className="text-3xl sm:text-4xl font-light" style={{ fontFamily: "'Playfair Display', serif" }}>
+            Quem Sou Eu
+          </h2>
+        </div>
+        <div className="grid md:grid-cols-2 gap-10 sm:gap-16 items-start">
+          {/* Texto */}
+          <div className="space-y-5 text-white/55 text-sm font-light leading-relaxed">
+            <p>
+              Meu nome é <span className="text-white/80">Wendhel Rodrigues</span> e, antes de me dedicar aos filmes de casamento, me formei em Direito. Mas foi no universo das histórias reais, dos encontros e das emoções verdadeiras que encontrei meu propósito. Escolhi a área de filme de casamento porque acredito que alguns momentos merecem ser eternos — e poucos são tão especiais quanto o dia em que duas vidas decidem caminhar juntas.
+            </p>
+            <p>
+              Há quase 10 anos, trabalho como filmmaker, registrando casamentos em diferentes lugares do Brasil e transformando cada celebração em um filme único, sensível e cheio de significado. Ao longo dessa trajetória, aprendi que não se trata apenas de captar imagens bonitas, mas de entender a essência de cada casal, perceber os detalhes que passam despercebidos e traduzir tudo isso em uma narrativa emocionante, elegante e verdadeira.
+            </p>
+            <p>
+              Meu olhar une sensibilidade, técnica e compromisso com a excelência. Cada filme é pensado com cuidado, desde a captação até a edição final, para entregar não apenas um registro, mas uma memória viva — daquelas que fazem reviver o frio na barriga, os sorrisos, as lágrimas e a intensidade de um dos dias mais importantes da vida.
+            </p>
+            <p>
+              Na Amenic, meu propósito é contar histórias de amor com autenticidade, qualidade e emoção. Porque mais do que filmar casamentos, eu acredito em criar lembranças que o tempo nunca apaga.
+            </p>
+          </div>
+          {/* Fotos */}
+          <div className="grid grid-cols-2 gap-3">
+            {fotos.map((src, i) => (
+              <div key={i} className="aspect-[3/4] overflow-hidden rounded-sm bg-white/5">
+                <img src={src} alt={`Wendhel Rodrigues ${i + 1}`} className="w-full h-full object-cover" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ── Portfólio Público ──────────────────────────────────────────── */
+type PortfolioGallery = {
+  id: string
+  slug: string
+  title: string
+  subtitle: string | null
+  coverImageUrl: string | null
+  _count: { videos: number; photos: number }
+}
+
+function PortfolioPublico() {
+  const [galleries, setGalleries] = useState<PortfolioGallery[]>([])
+
+  useEffect(() => {
+    fetch("/api/public/galleries")
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setGalleries(data) })
+      .catch(() => {})
+  }, [])
+
+  return (
+    <section id="portfolio-publico" className="py-20 sm:py-28 px-4 sm:px-6 lg:px-16 bg-white/[0.02] border-t border-white/5">
+      <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-10 sm:mb-14">
+          <p className="text-white/30 text-[10px] sm:text-xs tracking-[0.4em] uppercase mb-3">Trabalhos</p>
+          <h2 className="text-3xl sm:text-4xl font-light" style={{ fontFamily: "'Playfair Display', serif" }}>
+            Portfólio
+          </h2>
+        </div>
+        {galleries.length === 0 ? (
+          <p className="text-center text-white/20 text-sm">Em breve.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {galleries.map(g => (
+              <div key={g.id} className="rounded-lg overflow-hidden bg-white/[0.03] border border-white/8">
+                {/* Capa */}
+                <div className="aspect-[4/3] bg-black overflow-hidden">
+                  {g.coverImageUrl ? (
+                    <img src={g.coverImageUrl} alt={g.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-white/10 text-xs">Sem capa</span>
+                    </div>
+                  )}
+                </div>
+                {/* Info */}
+                <div className="p-4">
+                  <h3 className="text-sm text-white/85 font-light mb-0.5">{g.title}</h3>
+                  {g.subtitle && <p className="text-xs text-white/35 mb-2">{g.subtitle}</p>}
+                  <p className="text-[11px] text-white/25 mb-4">
+                    {g._count.videos > 0 && `${g._count.videos} vídeo${g._count.videos > 1 ? "s" : ""}`}
+                    {g._count.videos > 0 && g._count.photos > 0 && "  ·  "}
+                    {g._count.photos > 0 && `${g._count.photos} foto${g._count.photos > 1 ? "s" : ""}`}
+                  </p>
+                  <a
+                    href={`/g/${g.slug}`}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 border border-[#C9A84C]/25 rounded text-[#C9A84C] text-xs tracking-wider transition-colors"
+                  >
+                    Ver
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+/* ── Depoimentos ────────────────────────────────────────────────── */
+function Depoimentos() {
+  return (
+    <section id="depoimentos" className="py-20 sm:py-28 px-4 sm:px-6 lg:px-16 border-t border-white/5">
+      <div className="max-w-5xl mx-auto text-center">
+        <p className="text-white/30 text-[10px] sm:text-xs tracking-[0.4em] uppercase mb-3">O que dizem</p>
+        <h2 className="text-3xl sm:text-4xl font-light mb-10" style={{ fontFamily: "'Playfair Display', serif" }}>
+          Depoimentos
+        </h2>
+        <p className="text-white/20 text-sm">Em breve.</p>
       </div>
     </section>
   )
