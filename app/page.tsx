@@ -94,35 +94,90 @@ export default function Home() {
 }
 
 /* ── Navbar ─────────────────────────────────────────────────────── */
+const NAV_LINKS = [
+  { href: "#portfolio",        label: "Nossa Visão" },
+  { href: "#experiencia",      label: "A Experiência" },
+  { href: "#quem-sou-eu",      label: "Quem Sou Eu" },
+  { href: "#portfolio-publico",label: "Portfólio" },
+  { href: "#depoimentos",      label: "Depoimentos" },
+]
+
 function Navbar() {
+  const [open, setOpen] = useState(false)
+
   return (
-    <nav
-      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-6 lg:px-16 py-4 sm:py-5"
-      style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)" }}
-    >
-      <Image
-        src="/landing/logo/logo-branco.png"
-        alt="Amenic Filmes"
-        width={120}
-        height={36}
-        className="object-contain w-[100px] sm:w-[120px] lg:w-[140px]"
-      />
-      <div className="hidden md:flex items-center gap-8 text-sm text-white/60">
-        <a href="#portfolio" className="hover:text-white transition-colors">Nossa Visão</a>
-        <a href="#experiencia" className="hover:text-white transition-colors">A Experiência</a>
-        <a href="#quem-sou-eu" className="hover:text-white transition-colors">Quem Sou Eu</a>
-        <a href="#portfolio-publico" className="hover:text-white transition-colors">Portfólio</a>
-        <a href="#depoimentos" className="hover:text-white transition-colors">Depoimentos</a>
-      </div>
-      <a
-        href={WHATSAPP}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="px-3 sm:px-5 py-2 sm:py-2.5 border border-white/30 text-white text-[10px] sm:text-xs tracking-widest uppercase hover:bg-white hover:text-black transition-all"
+    <>
+      <nav
+        className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-6 lg:px-16 py-4 sm:py-5"
+        style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)" }}
       >
-        Agendar Reunião
-      </a>
-    </nav>
+        <Image
+          src="/landing/logo/logo-branco.png"
+          alt="Amenic Filmes"
+          width={120}
+          height={36}
+          className="object-contain w-[100px] sm:w-[120px] lg:w-[140px]"
+        />
+
+        {/* Desktop — links em linha */}
+        <div className="hidden md:flex items-center gap-8 text-sm text-white/60">
+          {NAV_LINKS.map(l => (
+            <a key={l.href} href={l.href} className="hover:text-white transition-colors">{l.label}</a>
+          ))}
+        </div>
+
+        {/* Mobile — hambúrguer + botão WhatsApp */}
+        <div className="flex items-center gap-3 md:hidden">
+          <a
+            href={WHATSAPP}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-2 border border-white/30 text-white text-[10px] tracking-widest uppercase hover:bg-white hover:text-black transition-all"
+          >
+            Agendar
+          </a>
+          <button
+            onClick={() => setOpen(o => !o)}
+            aria-label="Menu"
+            className="flex flex-col justify-center gap-1.5 w-8 h-8"
+          >
+            <span className={`block h-px bg-white transition-all duration-300 ${open ? "rotate-45 translate-y-[7px]" : ""}`} />
+            <span className={`block h-px bg-white transition-all duration-300 ${open ? "opacity-0" : ""}`} />
+            <span className={`block h-px bg-white transition-all duration-300 ${open ? "-rotate-45 -translate-y-[7px]" : ""}`} />
+          </button>
+        </div>
+
+        {/* Desktop — botão WhatsApp */}
+        <a
+          href={WHATSAPP}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hidden md:inline-flex px-5 py-2.5 border border-white/30 text-white text-xs tracking-widest uppercase hover:bg-white hover:text-black transition-all"
+        >
+          Agendar Reunião
+        </a>
+      </nav>
+
+      {/* Menu mobile dropdown */}
+      {open && (
+        <div
+          className="fixed inset-0 z-40 flex flex-col pt-20 px-6 gap-6 md:hidden"
+          style={{ background: "rgba(10,10,10,0.97)" }}
+          onClick={() => setOpen(false)}
+        >
+          {NAV_LINKS.map(l => (
+            <a
+              key={l.href}
+              href={l.href}
+              className="text-white/70 text-lg font-light tracking-wider hover:text-white transition-colors border-b border-white/8 pb-4"
+              onClick={() => setOpen(false)}
+            >
+              {l.label}
+            </a>
+          ))}
+        </div>
+      )}
+    </>
   )
 }
 
