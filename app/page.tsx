@@ -340,22 +340,19 @@ function Experiencia() {
 
 /* ── Quem Sou Eu ────────────────────────────────────────────────── */
 function QuemSouEu() {
-  const fotos = [
-    "/landing/quem-sou-eu/hf_20260520_013749_379f9ce7-e84f-497e-8c92-069852eb4bb9.png",
-    "/landing/quem-sou-eu/hf_20260520_021231_b17c624f-2594-44e2-a6bd-7f9773870a45.png",
-  ]
   return (
-    <section id="quem-sou-eu" className="py-20 sm:py-28 px-4 sm:px-6 lg:px-16 border-t border-white/5">
-      <div className="max-w-5xl mx-auto">
+    <section id="quem-sou-eu" className="py-20 sm:py-28 border-t border-white/5">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-16">
         <div className="text-center mb-10 sm:mb-14">
           <p className="text-white/30 text-[10px] sm:text-xs tracking-[0.4em] uppercase mb-3">O Cineasta</p>
           <h2 className="text-3xl sm:text-4xl font-light" style={{ fontFamily: "'Playfair Display', serif" }}>
             Quem Sou Eu
           </h2>
         </div>
-        <div className="grid md:grid-cols-2 gap-10 sm:gap-16 items-start">
+        {/* Mobile: foto em cima, texto embaixo. Desktop: texto | foto lado a lado */}
+        <div className="flex flex-col md:grid md:grid-cols-2 gap-10 sm:gap-16 items-stretch">
           {/* Texto */}
-          <div className="space-y-5 text-white/55 text-sm font-light leading-relaxed">
+          <div className="space-y-5 text-white/55 text-sm sm:text-base font-light leading-relaxed order-2 md:order-1">
             <p>
               Meu nome é <span className="text-white/80">Wendhel Rodrigues</span> e, antes de me dedicar aos filmes de casamento, me formei em Direito. Mas foi no universo das histórias reais, dos encontros e das emoções verdadeiras que encontrei meu propósito. Escolhi a área de filme de casamento porque acredito que alguns momentos merecem ser eternos — e poucos são tão especiais quanto o dia em que duas vidas decidem caminhar juntas.
             </p>
@@ -369,13 +366,14 @@ function QuemSouEu() {
               Na Amenic, meu propósito é contar histórias de amor com autenticidade, qualidade e emoção. Porque mais do que filmar casamentos, eu acredito em criar lembranças que o tempo nunca apaga.
             </p>
           </div>
-          {/* Fotos */}
-          <div className="grid grid-cols-2 gap-3">
-            {fotos.map((src, i) => (
-              <div key={i} className="aspect-[3/4] overflow-hidden rounded-sm bg-white/5">
-                <img src={src} alt={`Wendhel Rodrigues ${i + 1}`} className="w-full h-full object-cover" />
-              </div>
-            ))}
+          {/* Foto única — segunda foto, altura total da coluna */}
+          <div className="order-1 md:order-2 w-full min-h-[340px] sm:min-h-[480px] md:min-h-0 overflow-hidden rounded-sm bg-white/5">
+            <img
+              src="/landing/quem-sou-eu/hf_20260520_021231_b17c624f-2594-44e2-a6bd-7f9773870a45.png"
+              alt="Wendhel Rodrigues"
+              className="w-full h-full object-cover object-top"
+              style={{ minHeight: "340px" }}
+            />
           </div>
         </div>
       </div>
