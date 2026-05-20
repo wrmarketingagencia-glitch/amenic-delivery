@@ -233,6 +233,7 @@ function Hero() {
 
 /* ── Portfolio ──────────────────────────────────────────────────── */
 function Portfolio() {
+  const [fotos] = useState(() => [...FOTOS].sort(() => Math.random() - 0.5))
   return (
     <section id="portfolio" className="py-20 sm:py-28">
       <div className="text-center mb-10 sm:mb-16 px-4 sm:px-6 lg:px-16">
@@ -259,7 +260,7 @@ function Portfolio() {
             paddingRight: "1rem",
           }}
         >
-          {FOTOS.map((src, i) => (
+          {fotos.map((src, i) => (
             <div
               key={i}
               className="gallery-item relative overflow-hidden rounded-sm aspect-[4/5] bg-black cursor-pointer"
